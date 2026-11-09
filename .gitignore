@@ -38,3 +38,7 @@ logs/
 # ----- OS -----
 .DS_Store
 Thumbs.db
+
+# ----- 내 PC 전용 도구 -----
+server-control.ps1
+서버관리.bat
