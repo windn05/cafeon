@@ -1,0 +1,568 @@
+/* 매장 POS. 색 · 글꼴은 ERP와 같은 토큰(theme/erp-tokens.css)을 쓰고, 카운터에서 쓰기 좋게 글자와 버튼을 크게 둔다. */
+
+/* ----- 틀: 상단 바는 틀 색, 본문은 그 안의 밝은 판 ----- */
+.sa-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--chrome);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.sa-page table,
+.sa-page .ant-table {
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  min-height: 60px;
+  padding: 8px 24px;
+}
+
+.sa-store {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.sa-store-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding-left: 16px;
+  border-left: 1px solid var(--chrome-line);
+}
+
+.sa-store-name b {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.sa-store-name span {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.sa-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+/* 상단 바 버튼: 틀 위의 조용한 글자 버튼 */
+.sa-head .ant-btn-text {
+  color: var(--ink-2);
+}
+
+.sa-head .ant-btn-text:not(:disabled):hover {
+  background: var(--chrome-hover);
+}
+
+.sa-main {
+  flex: 1;
+  margin: 0;
+  padding: 24px;
+  background: var(--bg);
+  border-top: 1px solid var(--chrome-line);
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
+}
+
+.sa-main-inner {
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+/* ----- 기기 등록 ----- */
+.sa-login {
+  max-width: 480px;
+  margin: 64px auto;
+  padding: 32px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.sa-login h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.sa-login p {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+/* ----- 오늘 요약 ----- */
+.sa-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.sa-summary > div {
+  padding: 16px 20px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.sa-summary span {
+  display: block;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.sa-summary b {
+  display: block;
+  margin-top: 8px;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-summary b small {
+  margin-left: 6px;
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* ----- 업무 탭 ----- */
+.sa-main .ant-tabs {
+  padding: 0 20px 20px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.sa-main .ant-tabs-nav {
+  margin-bottom: 20px;
+}
+
+.sa-main .ant-tabs-tab {
+  padding: 16px 0;
+  font-size: 15px;
+}
+
+.sa-main .ant-tabs-tab + .ant-tabs-tab {
+  margin-left: 28px;
+}
+
+.sa-main .ant-tabs-tab-active .ant-tabs-tab-btn {
+  font-weight: 600;
+}
+
+.sa-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 440px;
+}
+
+.sa-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sa-list li {
+  padding: 8px 0;
+  font-size: 15px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+/* ----- 판매: 메뉴판 + 결제 패널 ----- */
+.sa-page .pos {
+  grid-template-columns: minmax(0, 1fr) 400px;
+  gap: 20px;
+  align-items: stretch;
+}
+
+.sa-page .pos-cats {
+  margin-bottom: 16px;
+}
+
+.sa-page .pos-menus {
+  grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
+  gap: 10px;
+  max-height: calc(100vh - 360px);
+  min-height: 360px;
+  padding: 2px 4px 2px 2px;
+  align-content: start;
+}
+
+.sa-page .pos-menu {
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 92px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  transition: border-color 150ms var(--ease), background-color 150ms var(--ease), transform 120ms var(--ease);
+}
+
+.sa-page .pos-menu:not(.is-off):active {
+  transform: scale(0.98);
+}
+
+.sa-page .pos-menu:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.sa-page .pos-menu b {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.sa-page .pos-menu span {
+  font-size: 15px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-page .pos-menu.is-off {
+  cursor: not-allowed;
+  background: var(--raised);
+  opacity: 1;
+}
+
+.sa-page .pos-menu.is-off b,
+.sa-page .pos-menu.is-off span {
+  color: var(--faint);
+}
+
+/* 결제 패널: 영수증처럼 위에서 아래로 읽힌다 */
+.sa-page .pos-cart {
+  gap: 12px;
+  padding: 20px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.sa-page .pos-cart-lines {
+  flex: 1;
+  min-height: 120px;
+  max-height: calc(100vh - 560px);
+  overflow-y: auto;
+}
+
+.sa-page .pos-cart-empty {
+  padding: 40px 0;
+  font-size: 15px;
+}
+
+.sa-page .pos-line {
+  gap: 12px;
+  padding: 10px 0;
+  font-size: 15px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.sa-page .pos-line .crud-num {
+  min-width: 76px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-page .pos-qty {
+  gap: 8px;
+}
+
+.sa-page .pos-qty b {
+  min-width: 20px;
+  text-align: center;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-page .pos-qty button {
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+  color: var(--ink-2);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  transition: background-color 150ms var(--ease);
+}
+
+.sa-page .pos-qty button:hover {
+  background: var(--raised);
+}
+
+.sa-page .pos-total {
+  align-items: baseline;
+  padding: 16px 0 4px;
+  font-size: 16px;
+  font-weight: 500;
+  border-top: 1px dashed var(--line);
+}
+
+.sa-page .pos-total strong {
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-page .pos-pay {
+  height: 56px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+/* ----- 공통 작은 요소 ----- */
+.pos-hint {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.pos-warn { color: var(--neg); font-weight: 600; }
+.pos-err { color: var(--neg); }
+
+.pos-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.crud-badge.red { color: var(--neg); background: var(--neg-soft); }
+.crud-badge.purple { color: #5b4a8a; background: #f1eef8; }
+
+/* 본사 연결 상태: 살아 있는 점 + 글자 (이 POS의 표식) */
+.pos-sync {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pos-conn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.pos-conn::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pos);
+  box-shadow: 0 0 0 3px var(--pos-soft);
+}
+
+.pos-conn.is-off {
+  color: var(--neg);
+  font-weight: 500;
+}
+
+.pos-conn.is-off::before {
+  background: var(--neg);
+  box-shadow: 0 0 0 3px var(--neg-soft);
+}
+
+.pos-pill {
+  padding: 2px 8px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pos-pill.is-wait { color: var(--warn); background: var(--warn-soft); }
+.pos-pill.is-fail { color: var(--neg); background: var(--neg-soft); }
+
+.pos-msg-body {
+  white-space: pre-wrap;
+  line-height: 1.65;
+}
+
+/* ----- 본사 알림 ----- */
+.pos-inbox {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 20px;
+  min-height: 440px;
+}
+
+.pos-inbox-list ul {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: calc(100vh - 380px);
+  min-height: 360px;
+  overflow-y: auto;
+}
+
+.pos-inbox-list li button {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  font: inherit;
+  text-align: left;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line-soft);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background-color 150ms var(--ease);
+}
+
+.pos-inbox-list li button:hover { background: var(--bg); }
+.pos-inbox-list li button.is-active { background: var(--accent-soft); }
+.pos-inbox-list li button b { display: block; margin-top: 6px; font-size: 15px; font-weight: 400; }
+.pos-inbox-list li button.is-unread b { font-weight: 600; }
+.pos-inbox-list li button.is-unread b::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 8px;
+  vertical-align: middle;
+  background: var(--accent);
+  border-radius: 50%;
+}
+
+.pos-inbox-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.pos-inbox-top small {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.pos-inbox-detail {
+  padding: 20px 24px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.pos-inbox-detail h3 {
+  margin: 12px 0 8px;
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.pos-msg-extra { margin: 12px 0; }
+
+.pos-mini {
+  width: 100%;
+  font-size: 14px;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.pos-mini th,
+.pos-mini td {
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.pos-mini th {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.pos-reply {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.pos-reply label { font-weight: 600; }
+
+.pos-replied {
+  margin-top: 16px;
+  padding: 12px 14px;
+  color: var(--pos);
+  background: var(--pos-soft);
+  border-radius: 10px;
+}
+
+/* ----- 좁은 화면 (태블릿 세로 등) ----- */
+@media (max-width: 1080px) {
+  .sa-page .pos {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sa-page .pos-menus,
+  .sa-page .pos-cart-lines {
+    max-height: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .sa-head { padding: 8px 16px; }
+  .sa-main { padding: 16px; }
+  .sa-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sa-store-name { padding-left: 0; border-left: 0; }
+  .pos-inbox { grid-template-columns: 1fr; }
+}
+
+/* ----- 일 마감 ----- */
+.sa-page .closing-figures > div {
+  padding: 16px 20px;
+  border-radius: 12px;
+}
+
+.sa-page .closing-figures span {
+  font-size: 14px;
+}
+
+.sa-page .closing-figures strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.sa-page .closing-figures small {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.sa-page .cash-box {
+  padding: 20px;
+  border-radius: 12px;
+}
+
+.sa-page .cash-box label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.sa-page .cash-box .cash-value {
+  font-size: 22px;
+}

@@ -1,0 +1,69 @@
+/* 매장 공지 · 지시 */
+.msg-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.msg-filter {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.msg-row { cursor: pointer; }
+.msg-row.is-active > td { background: var(--accent-soft) !important; }
+
+.msg-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  vertical-align: middle;
+  background: #d9480f;
+  border-radius: 50%;
+}
+
+.msg-progress small { color: var(--muted); font-size: 13px; }
+.msg-late { color: var(--neg); }
+
+.msg-bar {
+  height: 6px;
+  margin-bottom: 3px;
+  overflow: hidden;
+  background: var(--line-soft);
+  border-radius: 999px;
+}
+
+.msg-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.msg-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.msg-head small { color: var(--muted); }
+.msg-detail h3 { margin: 10px 0 6px; font-size: 16px; }
+
+.msg-body {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  white-space: pre-wrap;
+  line-height: 1.6;
+  background: var(--bg);
+  border-radius: 8px;
+}
+
+.crud-badge.red { color: #b91c1c; background: var(--neg-soft); }
+.crud-badge.purple { color: #6d28d9; background: #f1ebfd; }
+
+@media (max-width: 1100px) {
+  .msg-layout { grid-template-columns: 1fr; }
+}

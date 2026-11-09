@@ -1,0 +1,76 @@
+/* 본사 ERP 색 · 글꼴 토큰. 화면 CSS는 hex 대신 이 변수를 쓴다. */
+:root {
+  /* 무채색 단계 */
+  --bg: #fafafa;
+  --card: #ffffff;
+  --raised: #f4f4f5;
+  --line: #ebebeb;
+  --line-soft: #f2f2f2;
+  /* 사이드바 · 상단 바 틀 */
+  --chrome: #efece7;
+  --chrome-line: #e2ddd5;
+  --chrome-hover: rgba(23, 23, 23, 0.05);
+  --ink: #171717;
+  --ink-2: #3a3a3a;
+  /* 보조 글자: 흰 바탕에서 5.3:1 이상 */
+  --muted: #666666;
+  /* 아이콘 · 비활성 · 테두리 전용. 읽어야 하는 글자에는 쓰지 않는다 */
+  --faint: #a3a3a3;
+
+  /* 강조색: CafeOn 로스팅 브라운 */
+  --accent: #8a5a3b;
+  --accent-strong: #5b3a26;
+  --accent-soft: #f6f0ea;
+
+  /* 의미 색 (톤 낮춤) */
+  --pos: #15803d;
+  --pos-soft: #eef7f1;
+  --warn: #b45309;
+  --warn-soft: #fbf3e6;
+  --neg: #c2410c;
+  --neg-soft: #fcefe8;
+  --info: #1d4ed8;
+  --info-soft: #eef2fb;
+  /* 한국 관례: 오르면 빨강, 내리면 파랑 */
+  --up: #dc2626;
+  --down: #2563eb;
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --font: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+}
+
+/* ----- 읽기 기본값 ----- */
+.layout {
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink);
+  /* 한국어는 어절 단위로 줄바꿈 (단어 중간에서 끊기지 않게) */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+/* 숫자는 자릿수를 맞춰 세로로 비교하기 쉽게 */
+.layout table,
+.layout .ant-table,
+.layout .ant-statistic,
+.layout .ant-input-number {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 화면 설명 문장은 한 줄이 너무 길어지지 않게 */
+.layout .dash-subtitle,
+.layout .crud-desc {
+  max-width: 60em;
+  line-height: 1.6;
+}
+
+/* antd 표: 머리글은 보조색, 본문은 기본색 */
+.layout .ant-table-thead > tr > th {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.layout .ant-table-tbody > tr > td {
+  color: var(--ink);
+}

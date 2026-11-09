@@ -1,0 +1,50 @@
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  line-height: 1.15;
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  font-size: 17px;
+  color: #fff;
+  background: #5b3a26;
+  border-radius: 8px;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-name {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.brand-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.brand-dark .brand-name { color: #1f1b16; }
+.brand-dark .brand-sub { color: #737373; }
+.brand-light .brand-name { color: #fff; }
+.brand-light .brand-sub { color: rgba(255, 255, 255, 0.7); }
+
+.brand-lg .brand-mark {
+  width: 44px;
+  height: 44px;
+  font-size: 22px;
+  border-radius: 10px;
+}
+
+.brand-lg .brand-name {
+  font-size: 24px;
+}

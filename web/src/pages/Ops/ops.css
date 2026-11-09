@@ -1,0 +1,364 @@
+/* ===== 매장 운영 화면 공통 (판매 현황 · 일 마감 · 재고) ===== */
+.ops-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ops-store-select {
+  min-width: 180px;
+}
+
+.ops-day {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ops-day > button {
+  height: 32px;
+  min-width: 32px;
+  padding: 0 8px;
+  font-size: 16px;
+  color: var(--ink-2);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 150ms var(--ease);
+}
+
+.ops-day > button:not(:disabled):hover {
+  background: var(--raised);
+}
+
+.ops-day > button:disabled {
+  color: var(--faint);
+  cursor: not-allowed;
+}
+
+.ops-day > .ops-day-today {
+  font-size: 14px;
+}
+
+.ops-change {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ops-change.is-up { color: var(--up); }
+.ops-change.is-down { color: var(--down); }
+
+/* 막대 비교 목록 (결제수단 · 채널 · 메뉴 순위) */
+.ops-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ops-bars li {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) 110px;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.ops-bars .bar {
+  height: 8px;
+  overflow: hidden;
+  background: var(--line-soft);
+  border-radius: 999px;
+}
+
+.ops-bars .bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.ops-bars .val {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.ops-bars .val small {
+  margin-left: 4px;
+  color: var(--muted);
+}
+
+.ops-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.ops-grid-2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+/* POS 판매 입력 */
+.pos {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.pos-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.pos-menus {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 8px;
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+.pos-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px;
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.pos-menu:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.pos-menu b {
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.pos-menu span {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.pos-cart {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.pos-cart-empty {
+  padding: 24px 0;
+  font-size: 14px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.pos-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.pos-qty {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pos-qty button {
+  width: 24px;
+  height: 24px;
+  line-height: 1;
+  background: #fff;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.pos-total {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  border-top: 1px dashed #d1d5db;
+}
+
+.closing-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.closing-figures {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.closing-figures > div {
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+}
+
+.closing-figures span {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.closing-figures strong {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cash-box {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.cash-box label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.cash-box .cash-value {
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.cash-diff.is-ok { color: var(--pos); }
+.cash-diff.is-bad { color: var(--neg); }
+
+.closing-done {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: var(--pos);
+  background: var(--pos-soft);
+  border-radius: 10px;
+}
+
+/* 재고 */
+.stock-qty {
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-qty small {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.count-row-diff.is-minus { color: var(--neg); }
+.count-row-diff.is-plus { color: var(--info); }
+
+@media (max-width: 900px) {
+  .pos,
+  .ops-grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .closing-figures {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cash-box {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 마감 현황: 전 매장 × 7일 */
+.closing-matrix .matrix-cell {
+  cursor: pointer;
+}
+
+.closing-matrix .matrix-cell:hover {
+  background: var(--bg);
+}
+
+.closing-matrix .matrix-cell.is-active {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.closing-matrix .matrix-cell .cell-num {
+  margin-bottom: 4px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* 정상 마감은 조용하게, 예외(시재 차이 · 미수신)만 배지로 눈에 띄게 */
+.closing-matrix .matrix-ok,
+.closing-matrix .matrix-none {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 22px;
+  color: var(--muted);
+}
+
+.closing-matrix .matrix-ok::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--pos);
+}
+
+.closing-matrix .matrix-none {
+  color: var(--faint);
+}
+
+.badge-red { color: var(--neg); background: var(--neg-soft); }
+
+/* 마감 현황: 매장에 확인 요청 */
+.closing-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #fff8ec;
+  border: 1px solid #f5dfb8;
+  border-radius: 10px;
+}

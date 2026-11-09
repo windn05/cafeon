@@ -1,0 +1,40 @@
+# ----- 의존성 · 빌드 결과 -----
+node_modules/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+.gradle/
+out/
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+HELP.md
+
+# ----- 내 PC 전용 설정 · 비밀값 (예시는 *.example 로 올린다) -----
+local.properties
+.env
+.env.*
+!.env.example
+
+# ----- 로그 -----
+logs/
+*.log
+
+# ----- 개발 도구 -----
+.claude/
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+.apt_generated
+.springBeans
+.sts4-cache
+
+# ----- OS -----
+.DS_Store
+Thumbs.db

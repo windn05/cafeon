@@ -1,0 +1,7 @@
+# 이 파일을 local.properties로 복사하고 값을 채운다 (local.properties는 깃에 올라가지 않는다)
+# 로그인 토큰 서명 키: 64자 이상 임의 문자열
+jwt.secret=
+# 홈 화면 뉴스 (네이버 검색 API) · 날씨 (OpenWeatherMap). 비워 두면 그 칸만 빈다
+naver.client-id=
+naver.client-secret=
+weather.api-key=

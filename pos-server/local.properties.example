@@ -1,0 +1,3 @@
+# 이 파일을 local.properties로 복사하고 값을 채운다 (local.properties는 깃에 올라가지 않는다)
+# POS 로그인 토큰 서명 키: 64자 이상 임의 문자열
+pos.jwt.secret=

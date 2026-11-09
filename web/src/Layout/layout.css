@@ -1,0 +1,126 @@
+.layout {
+  min-height: 100vh;
+  background: var(--chrome);
+}
+
+.layout > .ant-layout {
+  min-height: 100vh;
+}
+
+/* ----- 사이드바 ----- */
+/* 사이드바와 상단 바는 같은 틀 색으로 이어지고, 본문 판만 밝게 떠 있다 */
+.layout .erp-sider {
+  border-right: none;
+}
+
+.layout .erp-sider .ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+}
+
+.layout .erp-sider .ant-layout-sider-trigger {
+  border-top: 1px solid var(--chrome-line);
+}
+
+.layout .erp-sider .ant-layout-sider-trigger:hover {
+  color: var(--ink);
+}
+
+.sider-brand {
+  display: flex;
+  align-items: center;
+  height: 56px;
+  padding: 0 20px;
+  flex: none;
+}
+
+.sider-brand.is-collapsed {
+  justify-content: center;
+  padding: 0;
+}
+
+.layout .erp-menu {
+  flex: 1;
+  padding: 12px 0 16px;
+  border-inline-end: none !important;
+  font-weight: 450;
+}
+
+/* 하위 메뉴는 아이콘 열에 맞춰 들여쓰기 */
+.layout .erp-menu .ant-menu-sub .ant-menu-item {
+  padding-inline-start: 46px !important;
+}
+
+/* 선택된 메뉴: 틀 위에 흰 칸 하나가 올라온 모양 */
+.layout .erp-menu .ant-menu-item-selected {
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(23, 23, 23, 0.06), 0 0 0 1px rgba(23, 23, 23, 0.04);
+}
+
+.layout .erp-menu .ant-menu-item .anticon,
+.layout .erp-menu .ant-menu-submenu-title .anticon {
+  color: var(--muted);
+}
+
+.layout .erp-menu .ant-menu-item-selected .anticon,
+.layout .erp-menu .ant-menu-submenu-selected > .ant-menu-submenu-title .anticon {
+  color: var(--accent);
+}
+
+.layout .erp-menu .ant-menu-submenu-selected > .ant-menu-submenu-title {
+  color: var(--ink);
+}
+
+/* ----- 상단 바 ----- */
+.main-header {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  line-height: 1;
+}
+
+.user-name {
+  margin-right: 8px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.header-link {
+  height: 32px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 150ms var(--ease), color 150ms var(--ease);
+}
+
+.header-link:hover {
+  color: var(--ink);
+  background: var(--chrome-hover);
+}
+
+.header-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ----- 본문: 틀 안쪽의 밝은 판 ----- */
+.layout .main-content {
+  min-height: calc(100vh - 56px);
+  background: var(--bg);
+  border-top: 1px solid var(--chrome-line);
+  border-left: 1px solid var(--chrome-line);
+  border-top-left-radius: 14px;
+  box-shadow: -1px -1px 3px rgba(23, 23, 23, 0.03);
+}
+
+.main-inner {
+  width: 100%;
+  max-width: 1600px;
+  padding: 28px 32px 0;
+}

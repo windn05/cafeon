@@ -1,0 +1,148 @@
+/* 상세 패널 */
+.st-drawer-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 18px;
+}
+
+.st-drawer-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.st-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.st-detail h4 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.st-count {
+  margin-left: 4px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.st-dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 16px;
+  background: var(--bg);
+  border-radius: 12px;
+}
+
+.st-dl dt {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.st-dl dd {
+  margin: 4px 0 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.st-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.st-line .anticon {
+  margin-top: 4px;
+  color: var(--faint);
+}
+
+.st-cost {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.st-cost div {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 16px;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.st-cost div + div {
+  border-top: 1px solid var(--line-soft);
+}
+
+.st-cost span {
+  color: var(--muted);
+}
+
+.st-cost b {
+  font-weight: 500;
+}
+
+.st-cost .is-total b {
+  font-weight: 600;
+}
+
+.st-note {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.st-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.st-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+}
+
+.st-list li + li {
+  border-top: 1px solid var(--line-soft);
+}
+
+.st-list li > span:first-child {
+  display: flex;
+  flex-direction: column;
+}
+
+.st-list b {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.st-list small {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.st-list-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 14px;
+  color: var(--ink-2);
+  text-align: right;
+}
+
+.st-equip.is-수리 { color: var(--warn); font-weight: 500; }
+.st-equip.is-폐기 { color: var(--muted); }
