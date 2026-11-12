@@ -1,5 +1,7 @@
 package com.example.docksystem_erp.service.Message;
 
+import com.example.docksystem_erp.util.BizClock;
+
 import com.example.docksystem_erp.entity.Message.StoreMessage;
 import com.example.docksystem_erp.entity.Message.StoreMessageTarget;
 import com.example.docksystem_erp.entity.OrderRequest.OrderRequest;
@@ -48,7 +50,7 @@ public class StoreMessageService {
         }
         if (req.title() == null || req.title().isBlank()) throw new IllegalArgumentException("제목을 적어 주세요.");
         boolean task = StoreMessage.TASK.equals(kind);
-        if (task && req.dueDate() != null && req.dueDate().isBefore(LocalDate.now())) {
+        if (task && req.dueDate() != null && req.dueDate().isBefore(BizClock.today())) {
             throw new IllegalArgumentException("회신 기한은 오늘 이후로 정해 주세요.");
         }
         List<Store> stores = req.storeNos() == null || req.storeNos().isEmpty() ? shops() : req.storeNos().stream()
@@ -82,9 +84,9 @@ public class StoreMessageService {
     // 회신 기한이 지났는데 답이 없는 매장 수 (홈 할 일)
     @Transactional(readOnly = true)
     public List<String> overdueReplies() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = BizClock.today();
         List<String> list = new ArrayList<>();
-        for (StoreMessage m : repository.findBySentAtBetweenOrderBySentAtDesc(LocalDateTime.now().minusDays(60), LocalDateTime.now())) {
+        for (StoreMessage m : repository.findBySentAtBetweenOrderBySentAtDesc(BizClock.now().minusDays(60), BizClock.now())) {
             if (!m.isNeedsReply() || m.getDueDate() == null || !m.getDueDate().isBefore(today)) continue;
             for (StoreMessageTarget t : m.getTargets()) {
                 // 휴점 매장은 POS가 꺼져 있어 답할 수 없으니 기한 지남으로 세지 않는다
@@ -98,7 +100,7 @@ public class StoreMessageService {
 
     // 받은 편지함: after 다음 번호부터. 처음 받아 가면 수신 시각을 남긴다.
     public List<Map<String, Object>> inbox(Store store, Long after) {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = BizClock.now();
         List<Map<String, Object>> list = new ArrayList<>();
         for (StoreMessageTarget t : targetRepository.findTop100ByStore_StoreNoAndTargetNoGreaterThanOrderByTargetNoAsc(store.getStoreNo(), after == null ? 0L : after)) {
             if (t.getDeliveredAt() == null) t.setDeliveredAt(now);
@@ -122,7 +124,7 @@ public class StoreMessageService {
 
     public Map<String, Object> read(Store store, Long targetNo) {
         StoreMessageTarget t = target(store, targetNo);
-        if (t.getReadAt() == null) t.setReadAt(LocalDateTime.now());
+        if (t.getReadAt() == null) t.setReadAt(BizClock.now());
         return Map.of("id", t.getTargetNo(), "readAt", t.getReadAt());
     }
 
@@ -130,7 +132,7 @@ public class StoreMessageService {
         StoreMessageTarget t = target(store, targetNo);
         if (!t.getMessage().isNeedsReply()) throw new IllegalArgumentException("회신이 필요 없는 메시지입니다.");
         if (reply == null || reply.isBlank()) throw new IllegalArgumentException("회신 내용을 적어 주세요.");
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = BizClock.now();
         if (t.getReadAt() == null) t.setReadAt(now);
         t.setReply(reply.trim().length() > 500 ? reply.trim().substring(0, 500) : reply.trim());
         t.setRepliedAt(now);
@@ -236,7 +238,7 @@ public class StoreMessageService {
         m.setTargetLabel(all ? "전 매장" : stores.size() == 1 ? stores.get(0).getStoreName()
                 : stores.get(0).getStoreName() + " 외 " + (stores.size() - 1) + "곳");
         m.setSentBy(CurrentUser.id());
-        m.setSentAt(LocalDateTime.now());
+        m.setSentAt(BizClock.now());
         Set<Long> seen = new HashSet<>();
         for (Store s : stores) {
             if (!seen.add(s.getStoreNo())) continue;
@@ -262,7 +264,7 @@ public class StoreMessageService {
     }
 
     private Map<String, Object> summary(StoreMessage m) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = BizClock.today();
         int delivered = 0, read = 0, replied = 0, overdue = 0;
         for (StoreMessageTarget t : m.getTargets()) {
             if (t.getDeliveredAt() != null) delivered++;

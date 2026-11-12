@@ -15,14 +15,13 @@ import { Badge, errorText } from "../../components/CrudPage/CrudPage";
 import { ERPapi } from "../../components/api/api";
 import { ERP_API } from "../../config";
 import { ACCENT, useFetch } from "../Ops/opsShared";
-import SimulationModal from "./SimulationModal";
+import { useNavigate } from "react-router-dom";
 import "./integration.css";
 
 dayjs.extend(relativeTime);
 
 const TYPES = ["판매", "일마감", "폐기", "실사", "발주요청", "입고", "지시회신"];
 const ago = (v) => (v ? dayjs(v).fromNow() : "-");
-const INGEST_BASE = "http://localhost:8080/api/ingest/v1";
 
 // 매장 POS를 새 탭으로 연다. 연동 키를 넘겨주면 POS가 그 키로 기기 등록을 한다.
 export const openPos = (key) => {
@@ -74,7 +73,7 @@ const IntegrationContainer = () => {
   const [logStore, setLogStore] = useState(null);
   const [logStatus, setLogStatus] = useState(null);
   const logs = useFetch(`${ERP_API}/integration/logs`, { storeNo: logStore || undefined, status: logStatus || undefined, limit: 200 });
-  const [simOpen, setSimOpen] = useState(false);
+  const navigate = useNavigate();
   const [demoStore, setDemoStore] = useState(null);
 
   const rows = useMemo(() => status.data || [], [status.data]);
@@ -99,7 +98,6 @@ const IntegrationContainer = () => {
     <ConfigProvider theme={{ token: { colorPrimary: ACCENT } }}>
       <div className="dash dash-erp">
         <DashHeader
-          title="데이터 수집 현황"
           subtitle="매장 POS가 연동 키로 본사에 보내는 데이터(판매 · 마감 · 폐기 · 실사 · 발주 요청 · 입고 · 지시 회신)를 확인합니다."
           extra={
             <div className="ops-toolbar">
@@ -113,8 +111,8 @@ const IntegrationContainer = () => {
               <Button icon={<MobileOutlined />} disabled={!demoStore} onClick={() => openPos(demoStore)}>
                 매장 POS 열기
               </Button>
-              <Button icon={<DatabaseOutlined />} onClick={() => setSimOpen(true)}>
-                가상 데이터 만들기
+              <Button icon={<DatabaseOutlined />} onClick={() => navigate("/erp/integration/simulator")}>
+                매장 영업 시뮬레이터
               </Button>
             </div>
           }
@@ -171,57 +169,34 @@ const IntegrationContainer = () => {
           />
         </Panel>
 
-        <div className="dash-row">
-          <Panel
-            title="최근 수집 기록"
-            extra={
-              <div className="ops-toolbar">
-                <Select allowClear placeholder="사업장 전체" style={{ width: 150 }} value={logStore} onChange={setLogStore} options={rows.map((r) => ({ value: r.storeNo, label: r.storeName }))} />
-                <Select allowClear placeholder="결과 전체" style={{ width: 110 }} value={logStatus} onChange={setLogStatus} options={["성공", "실패"].map((s) => ({ value: s, label: s }))} />
-              </div>
-            }
-            bodyClassName="is-flush"
-          >
-            <Table
-              size="small"
-              rowKey="logNo"
-              loading={logs.loading}
-              dataSource={logs.data || []}
-              pagination={{ pageSize: 12, showSizeChanger: false }}
-              columns={[
-                { title: "받은 시각", dataIndex: "receivedAt", render: (v) => <span className="crud-num">{dayjs(v).format("M/D HH:mm:ss")}</span> },
-                { title: "사업장", dataIndex: "storeName" },
-                { title: "종류", dataIndex: "dataType" },
-                { title: "영업일", dataIndex: "businessDate", render: (v) => <span className="crud-num">{v ? dayjs(v).format("M/D") : "-"}</span> },
-                { title: "건수", dataIndex: "recordCount", align: "right" },
-                { title: "결과", dataIndex: "status", render: (v) => <Badge value={v} tones={{ 성공: "green", 실패: "red" }} /> },
-                { title: "메시지", dataIndex: "message", render: (v) => <span className="crud-sub">{v || ""}</span> },
-              ]}
-            />
-          </Panel>
-          <Panel title="수집 API 안내">
-            <div className="api-guide">
-              <p>매장 시스템은 요청 헤더에 매장 연동 키를 넣어 보냅니다.</p>
-              <pre>X-Store-Key: sk_…</pre>
-              <ul>
-                <li><code>GET  /master</code> 메뉴 · 가격 · 레시피 · 식자재 받기</li>
-                <li><code>POST /sales</code> 영수증 묶음 (같은 영수증 번호는 건너뜀)</li>
-                <li><code>POST /closings</code> 일 마감 (현금 시재)</li>
-                <li><code>POST /wastes</code> 폐기</li>
-                <li><code>POST /stocktakes</code> 재고 실사</li>
-                <li><code>POST /order-requests</code> 발주 요청</li>
-                <li><code>POST /deliveries</code> 입고 확인</li>
-                <li><code>GET  /inbox?after=</code> 본사 메시지 받기 (공지 · 메뉴·가격 · 발주 결과 · 지시)</li>
-                <li><code>POST /inbox/{"{id}"}/read</code> · <code>/reply</code> 확인 · 지시 회신</li>
-              </ul>
-              <p className="ops-note">
-                기본 주소 <code>{INGEST_BASE}</code> · 메뉴 · 식자재는 코드(CF-AME, DY-001 …)로 주고받습니다. 매장 POS는 저장한 데이터를 대기열에 쌓았다가 순서대로 보내고, 20초마다 본사 메시지 · 메뉴 · 재고를 받아 갑니다.
-              </p>
+        <Panel
+          title="최근 수집 기록"
+          extra={
+            <div className="ops-toolbar">
+              <Select allowClear placeholder="사업장 전체" style={{ width: 150 }} value={logStore} onChange={setLogStore} options={rows.map((r) => ({ value: r.storeNo, label: r.storeName }))} />
+              <Select allowClear placeholder="결과 전체" style={{ width: 110 }} value={logStatus} onChange={setLogStatus} options={["성공", "실패"].map((s) => ({ value: s, label: s }))} />
             </div>
-          </Panel>
-        </div>
+          }
+          bodyClassName="is-flush"
+        >
+          <Table
+            size="small"
+            rowKey="logNo"
+            loading={logs.loading}
+            dataSource={logs.data || []}
+            pagination={{ pageSize: 12, showSizeChanger: false }}
+            columns={[
+              { title: "받은 시각", dataIndex: "receivedAt", render: (v) => <span className="crud-num">{dayjs(v).format("M/D HH:mm:ss")}</span> },
+              { title: "사업장", dataIndex: "storeName" },
+              { title: "종류", dataIndex: "dataType" },
+              { title: "영업일", dataIndex: "businessDate", render: (v) => <span className="crud-num">{v ? dayjs(v).format("M/D") : "-"}</span> },
+              { title: "건수", dataIndex: "recordCount", align: "right" },
+              { title: "결과", dataIndex: "status", render: (v) => <Badge value={v} tones={{ 성공: "green", 실패: "red" }} /> },
+              { title: "메시지", dataIndex: "message", render: (v) => <span className="crud-sub">{v || ""}</span> },
+            ]}
+          />
+        </Panel>
 
-        <SimulationModal open={simOpen} onClose={() => setSimOpen(false)} onDone={reloadAll} />
       </div>
     </ConfigProvider>
   );

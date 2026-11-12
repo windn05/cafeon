@@ -1,5 +1,7 @@
 package com.example.docksystem_erp.service.Integration;
 
+import com.example.docksystem_erp.util.BizClock;
+
 import com.example.docksystem_erp.entity.Integration.IngestLog;
 import com.example.docksystem_erp.entity.Store.Store;
 import com.example.docksystem_erp.repository.Store.StoreRepository;
@@ -52,7 +54,7 @@ public class IntegrationService {
     // 매장별 데이터 종류마다 마지막으로 받은 시각 · 최근 실패 · 어제 마감 수신 여부
     public List<Map<String, Object>> status() {
         ensureKeys();
-        LocalDate today = LocalDate.now();
+        LocalDate today = BizClock.today();
         LocalDate yesterday = today.minusDays(1);
         Map<Long, Map<String, Object>> last = new HashMap<>();
         jdbc.queryForList("select store_no, data_type, max(received_at) as last_at from ingest_logs where status = '성공' group by store_no, data_type")

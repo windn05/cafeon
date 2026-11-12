@@ -1,5 +1,7 @@
 package com.example.docksystem_erp.service.Simulation;
 
+import com.example.docksystem_erp.util.BizClock;
+
 import com.example.docksystem_erp.entity.Client.Client;
 import com.example.docksystem_erp.entity.Integration.IngestLog;
 import com.example.docksystem_erp.entity.OrderRequest.OrderRequest;
@@ -52,7 +54,9 @@ import java.util.*;
  *  - 판매: 매장별 손님 수 · 요일 · 시간대 · 계절(아이스 음료 비중) 패턴
  *  - 어제까지는 일 마감(현금 시재 포함) + 레시피 기준 판매소진
  *  - 유통기한 경과 · 당일 미판매 폐기, 일요일 재고 실사(작은 로스)
- *  - 월·목 정기 발주(공급업체별 발주서) → 납품 소요일 뒤 입고 검수, 재고가 바닥나면 긴급 발주
+ *  - 월·목 정기 발주 → 물류센터 공급 품목은 물류센터 출고(다음 날 도착), 직송 품목은 공급업체 발주서
+ *    → 도착일에 입고 검수, 재고가 바닥나면 긴급 발주
+ *  - 물류센터: 기초 재고 → 매장 출고 → 월·목 공급업체에 정기 보충 → 납품일에 입고
  *  - 직원 근무표 (지난 기간 + 이번 주)
  *  - 오늘은 지금 시각까지만 판매가 있고 마감 전 상태
  */
@@ -89,10 +93,8 @@ public class SimulationService {
     private static final Map<String, Profile> PROFILES = Map.of(
             "ST-GN01", new Profile(200, 1.0, 0.12, STREET),
             "ST-HD01", new Profile(175, 1.25, 0.08, EVENING),
-            "ST-YD01", new Profile(160, 0.45, 0.05, OFFICE),
-            "ST-PG01", new Profile(140, 0.55, 0.10, OFFICE),
-            "ST-BS01", new Profile(145, 1.2, 0.15, STREET),
-            "ST-DJ01", new Profile(100, 1.1, 0.10, STREET));
+            "ST-YD01", new Profile(160, 0.45, 0.05, OFFICE));
+    private static final String BAKERY = "베이커리·디저트";
     private static final Profile DEFAULT = new Profile(120, 1.0, 0.10, STREET);
 
     // 메뉴 인기도 (없으면 2)
@@ -105,33 +107,150 @@ public class SimulationService {
     // 날이 추워질수록 덜 팔리는 차가운 메뉴
     private static final Set<String> ICED = Set.of("CF-IAM", "CF-CBR", "AD-LEM", "NC-STR");
 
-    private record Item(Menu menu, int qty) {}
+    public record Item(Menu menu, int qty) {}
 
-    private record Receipt(LocalTime time, String payment, String channel, List<Item> items) {}
+    public record Receipt(LocalTime time, String payment, String channel, List<Item> items) {}
+
+    // 문서 번호 순번: 날짜마다 본사 전체에서 1부터 (예: RQ-261111-003)
+    private final Map<String, Integer> docSeq = new HashMap<>();
+
+    private String nextDoc(String prefix) {
+        return prefix + String.format("%03d", docSeq.merge(prefix, 1, Integer::sum));
+    }
+
+    // 운영 기록(판매 · 마감 · 재고 · 발주 · 근무 · 메시지 · 수집 기록)을 모두 지운다. 기준 정보는 그대로
+    @Transactional
+    public void wipeOperations() {
+        for (String t : List.of("store_message_targets", "store_messages", "ingest_logs", "order_request_lines", "order_requests",
+                "monthly_closings", "shifts", "purchase_order_lines", "purchase_orders", "stocktake_lines", "stocktakes",
+                "inventory_txns", "daily_closings", "sales", "doc_sequences")) {
+            jdbc.update("delete from " + t);
+        }
+    }
+
+    // ----- 매장 영업 시뮬레이터(PosRunService)가 같이 쓰는 부분 -----
+
+    // 판매에 쓸 메뉴: 레시피(또는 완제품 납품 품목)까지 미리 불러 둔다
+    @Transactional(readOnly = true)
+    public List<Menu> loadMenus() {
+        List<Menu> menus = menuRepository.findAll();
+        menus.forEach(m -> m.getRecipeItems().forEach(r -> r.getMaterial().getMaterialCode()));
+        return menus;
+    }
+
+    // 한 매장의 하루 손님 영수증 (매장 성격 · 요일 · 계절 패턴). start ~ start+days 사이의 진행도로 계절과 성장을 정한다
+    public List<Receipt> receiptsFor(Store store, LocalDate d, LocalDate start, int days, List<Menu> menus, Random rnd) {
+        Profile p = PROFILES.getOrDefault(store.getStoreCode(), DEFAULT);
+        List<Receipt> list = dayReceipts(d, start, start.plusDays(days), days, false, LocalTime.MAX, p, menus, rnd);
+        list.sort(Comparator.comparing(Receipt::time));
+        return list;
+    }
+
+    // ----- 날짜별 영업 시뮬레이터: 시나리오 -----
+    // weather: 평소 · 비 · 폭염 · 한파 · 행사 · 공휴일 / customerRate: 손님 수 배율 / deliveryBoost: 배달 비중 더하기 / promos: 메뉴 코드 → 판매 배수
+    public record Scenario(String weather, double customerRate, double deliveryBoost, Map<String, Double> promos) {
+        public static Scenario plain() {
+            return new Scenario("평소", 1.0, 0, Map.of());
+        }
+    }
+
+    public record StoreTrait(int baseCustomers, String area, double weekend, double delivery) {}
+
+    // 화면에 보여 줄 매장 성격
+    public StoreTrait trait(Store store) {
+        Profile p = PROFILES.getOrDefault(store.getStoreCode(), DEFAULT);
+        String area = p.hours() == OFFICE ? "오피스" : p.hours() == EVENING ? "저녁 상권" : "번화가";
+        return new StoreTrait(p.base(), area, p.weekend(), p.delivery());
+    }
+
+    // 하루 손님 영수증: 매장 성격 · 요일 · 계절(달) + 시나리오. 같은 날 · 매장 · 시나리오면 늘 같은 결과 (미리보기 = 실제 실행)
+    public List<Receipt> scenarioReceipts(Store store, LocalDate d, List<Menu> menus, Scenario sc) {
+        Profile p = PROFILES.getOrDefault(store.getStoreCode(), DEFAULT);
+        Random rnd = new Random(d.toEpochDay() * 7919L + store.getStoreNo() * 104729L + sc.hashCode());
+        String w = sc.weather() == null ? "평소" : sc.weather();
+        // 계절: 여름일수록 아이스, 겨울일수록 따뜻한 메뉴
+        int month = d.getMonthValue();
+        double ice = switch (month) { case 6, 7, 8 -> 1.6; case 5, 9 -> 1.3; case 4, 10 -> 1.0; case 3 -> 0.9; default -> 0.8; };
+        double hot = switch (month) { case 6, 7, 8 -> 0.75; case 5, 9 -> 0.9; case 4, 10 -> 1.05; default -> 1.2; };
+        switch (w) {
+            case "비" -> { ice *= 0.8; hot *= 1.1; }
+            case "폭염" -> { ice *= 1.6; hot *= 0.6; }
+            case "한파" -> { ice *= 0.5; hot *= 1.3; }
+            default -> { }
+        }
+        List<Menu> pool = new ArrayList<>();
+        List<Double> weights = new ArrayList<>();
+        for (Menu m : menus) {
+            if (!"판매중".equals(m.getStatus())) continue;
+            double wt = POPULARITY.getOrDefault(m.getMenuCode(), 2.0);
+            wt *= ICED.contains(m.getMenuCode()) ? ice : ("커피".equals(m.getCategory()) || "티".equals(m.getCategory()) ? hot : 1);
+            wt *= sc.promos() == null ? 1 : sc.promos().getOrDefault(m.getMenuCode(), 1.0);
+            pool.add(m);
+            weights.add(wt);
+        }
+        if (pool.isEmpty()) return new ArrayList<>();
+
+        boolean weekend = "공휴일".equals(w) || d.getDayOfWeek() == DayOfWeek.SATURDAY || d.getDayOfWeek() == DayOfWeek.SUNDAY;
+        double dow = switch (d.getDayOfWeek()) {
+            case MONDAY -> 0.94;
+            case TUESDAY -> 0.97;
+            case THURSDAY -> 1.02;
+            case FRIDAY -> 1.1;
+            default -> 1.0;
+        };
+        // 프로모션 메뉴는 그만큼 손님도 조금 늘린다
+        double promoLift = sc.promos() == null ? 1 : 1 + sc.promos().values().stream().mapToDouble(v -> Math.max(0, v - 1) * 0.05).sum();
+        double factor = (weekend ? p.weekend() : dow) * sc.customerRate() * promoLift * (0.92 + rnd.nextDouble() * 0.16);
+        int count = (int) Math.round(p.base() * factor);
+        double[] hours = p.hours().clone();
+        if ("행사".equals(w)) for (int h = 11; h < hours.length; h++) hours[h] *= 1.8; // 18시 이후 행사 손님
+        double delivery = Math.max(0, Math.min(0.6, p.delivery() + sc.deliveryBoost()));
+        double takeout = "비".equals(w) || "한파".equals(w) ? 0.30 : 0.36;
+
+        List<Receipt> receipts = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            int hour = OPEN_HOUR + pick(hours, rnd);
+            LocalTime time = LocalTime.of(hour, rnd.nextInt(60), rnd.nextInt(60));
+            double pr = rnd.nextDouble();
+            String payment = pr < 0.72 ? "카드" : pr < 0.94 ? "간편결제" : "현금";
+            double cr = rnd.nextDouble();
+            String channel = cr < delivery ? "배달" : cr < delivery + takeout ? "포장" : "매장";
+            if ("배달".equals(channel) && "현금".equals(payment)) payment = "간편결제";
+            double ir = rnd.nextDouble();
+            int itemCount = ir < 0.6 ? 1 : ir < 0.88 ? 2 : ir < 0.97 ? 3 : 4;
+            if ("배달".equals(channel)) itemCount = Math.max(itemCount, 2);
+            Map<Menu, Integer> basket = new LinkedHashMap<>();
+            for (int k = 0; k < itemCount; k++) basket.merge(pool.get(pickW(weights, rnd)), rnd.nextDouble() < 0.9 ? 1 : 2, Integer::sum);
+            List<Item> items = new ArrayList<>();
+            basket.forEach((m, q) -> items.add(new Item(m, q)));
+            receipts.add(new Receipt(time, payment, channel, items));
+        }
+        receipts.sort(Comparator.comparing(Receipt::time));
+        return receipts;
+    }
+
+    // 직원이 있는 모든 사업장의 근무표 (start ~ until이 든 주까지)
+    @Transactional
+    public int shiftsFor(LocalDate start, LocalDate until, long seed) {
+        int n = 0;
+        for (Store store : storeRepository.findAll()) {
+            if ("폐점".equals(store.getStatus())) continue;
+            n += generateShifts(store, start, until, new Random(store.getStoreNo() * 31L + seed));
+        }
+        return n;
+    }
 
     @Transactional
     public Map<String, Object> regenerate(int days) {
         days = Math.max(7, Math.min(days, 120));
+        docSeq.clear();
         long started = System.currentTimeMillis();
-        jdbc.update("delete from store_message_targets");
-        jdbc.update("delete from store_messages");
-        jdbc.update("delete from ingest_logs");
-        jdbc.update("delete from order_request_lines");
-        jdbc.update("delete from order_requests");
-        jdbc.update("delete from monthly_closings");
-        jdbc.update("delete from shifts");
-        jdbc.update("delete from purchase_order_lines");
-        jdbc.update("delete from purchase_orders");
-        jdbc.update("delete from stocktake_lines");
-        jdbc.update("delete from stocktakes");
-        jdbc.update("delete from inventory_txns");
-        jdbc.update("delete from daily_closings");
-        jdbc.update("delete from sales");
+        wipeOperations();
 
         integrationService.ensureKeys();
-        LocalDate today = LocalDate.now();
+        LocalDate today = BizClock.today();
         LocalDate start = today.minusDays(days);
-        LocalTime now = LocalTime.now();
+        LocalTime now = BizClock.time();
         String user = CurrentUser.id();
 
         List<Menu> menus = menuRepository.findAll();
@@ -141,6 +260,11 @@ public class SimulationService {
         materials.forEach(m -> materialByNo.put(m.getMaterialNo(), m));
 
         int receiptTotal = 0, lineTotal = 0, closingTotal = 0, stocktakeTotal = 0, txnTotal = 0, poTotal = 0, shiftTotal = 0;
+        // 물류센터 (없으면 모든 품목을 직송으로 만든다)
+        Store center = storeRepository.findAll().stream()
+                .filter(s -> PurchaseOrderService.CENTER_TYPE.equals(s.getStoreType()) && !"폐점".equals(s.getStatus()))
+                .min(Comparator.comparing(Store::getStoreNo)).orElse(null);
+        List<CenterShip> centerShips = new ArrayList<>(); // 매장으로 내보낸 기록 (물류센터 재고에서 뺄 것)
         // 판매가 없는 센트럴키친 · 물류센터도 근무표는 만든다
         for (Store store : storeRepository.findAll()) {
             if (!OpsGuard.SHOP_TYPES.contains(store.getStoreType()) && !"폐점".equals(store.getStatus())) {
@@ -181,7 +305,7 @@ public class SimulationService {
                         double qty = got * line.getPackQty();
                         stock.merge(line.getMaterial().getMaterialNo(), qty, Double::sum);
                         txnRows.add(txn(store, line.getMaterial(), d, InventoryTxn.RECEIPT, qty, null,
-                                po.getPoNumber() + " · " + po.getClient().getClientName(), "PO", po.getPoNo(),
+                                po.getPoNumber() + " · " + po.sourceName(), "PO", po.getPoNo(),
                                 Timestamp.valueOf(d.atTime(9, 30)), pos));
                     }
                     logRows.add(ingestLog(store, IngestLog.DELIVERY, d, d.atTime(9, 40), po.getLines().size(), true, null));
@@ -261,8 +385,8 @@ public class SimulationService {
                     double qty = 0;
                     String reason = null;
                     boolean perishable = "냉장".equals(m.getStorageType()) && m.getShelfLifeDays() != null && m.getShelfLifeDays() <= 30;
-                    if ("BK-001".equals(m.getMaterialCode()) && rnd.nextDouble() < 0.5) {
-                        qty = 1 + rnd.nextInt(3);
+                    if (BAKERY.equals(m.getMaterialType()) && rnd.nextDouble() < 0.35) {
+                        qty = 1 + rnd.nextInt(2); // 완제품 베이커리 · 디저트: 그날 못 판 것
                         reason = "당일 미판매";
                     } else if (perishable && rnd.nextDouble() < 0.2) {
                         qty = Math.round(e.getValue() * (0.03 + rnd.nextDouble() * 0.05));
@@ -359,7 +483,8 @@ public class SimulationService {
                 for (var e : avgUse.entrySet()) {
                     Material m = materialByNo.get(e.getKey());
                     if (m.getClient() == null) continue;
-                    int lead = Math.max(1, PurchaseOrderService.leadDays(m.getClient()));
+                    boolean fromCenter = center != null && !m.isDirect();
+                    int lead = fromCenter ? PurchaseOrderService.SHIP_DAYS : Math.max(1, PurchaseOrderService.leadDays(m.getClient()));
                     double onOrder = pending.stream().flatMap(po -> po.getLines().stream())
                             .filter(l -> l.getMaterial().getMaterialNo().equals(e.getKey()))
                             .mapToDouble(l -> l.getOrderPacks() * l.getPackQty()).sum();
@@ -371,7 +496,6 @@ public class SimulationService {
                     int packCount = (int) Math.ceil(need / m.getPackQty());
                     orders.computeIfAbsent(m.getClient(), k -> new LinkedHashMap<>()).put(m, packCount);
                 }
-                int seq = 0;
                 // 매장 발주 요청(본사 승인 완료) → 공급업체별 발주서
                 OrderRequest request = null;
                 if (!orders.isEmpty()) {
@@ -383,7 +507,7 @@ public class SimulationService {
                     request.setDecidedBy(user);
                     request.setDecidedAt(d.atTime(22, 55));
                     request.setCreatedAt(d.atTime(22, 50));
-                    request.setRequestNumber(OrderRequestService.requestNumber(store.getStoreCode(), d, 1));
+                    request.setRequestNumber(nextDoc(OrderRequestService.requestPrefix(d)));
                     for (var o : orders.entrySet()) {
                         for (var mp : o.getValue().entrySet()) {
                             OrderRequestLine rl = new OrderRequestLine();
@@ -397,17 +521,56 @@ public class SimulationService {
                     logRows.add(ingestLog(store, IngestLog.ORDER, d, d.atTime(22, 50), request.getLines().size(), true, null));
                 }
                 List<String> poNumbers = new ArrayList<>();
+                Map<Material, Integer> shipItems = new LinkedHashMap<>();
+                Map<Client, Map<Material, Integer>> directOrders = new LinkedHashMap<>();
                 for (var o : orders.entrySet()) {
+                    for (var mp : o.getValue().entrySet()) {
+                        if (center != null && !mp.getKey().isDirect()) shipItems.put(mp.getKey(), mp.getValue());
+                        else directOrders.computeIfAbsent(o.getKey(), k -> new LinkedHashMap<>()).put(mp.getKey(), mp.getValue());
+                    }
+                }
+                if (!shipItems.isEmpty()) {
+                    PurchaseOrder po = new PurchaseOrder();
+                    po.setStore(store);
+                    po.setFromStore(center);
+                    po.setKind(PurchaseOrder.KIND_SHIP);
+                    po.setOrderDate(d);
+                    po.setExpectedDate(d.plusDays(PurchaseOrderService.SHIP_DAYS));
+                    po.setStatus(PurchaseOrder.ORDERED);
+                    po.setNote("매장 발주 요청 " + request.getRequestNumber());
+                    po.setOrderedBy(user);
+                    po.setCreatedAt(d.atTime(22, 45));
+                    po.setPoNumber(nextDoc(PurchaseOrderService.docPrefix(PurchaseOrderService.SO, d)));
+                    shipItems.forEach((m, packCount) -> {
+                        PurchaseOrderLine line = new PurchaseOrderLine();
+                        line.setPurchaseOrder(po);
+                        line.setMaterial(m);
+                        line.setOrderPacks(packCount);
+                        line.setPackPrice(m.getMaterialPrice());
+                        line.setPackQty(m.getPackQty());
+                        po.getLines().add(line);
+                    });
+                    poRepository.save(po);
+                    pending.add(po);
+                    poTotal++;
+                    poNumbers.add(po.getPoNumber());
+                    for (PurchaseOrderLine line : po.getLines()) {
+                        centerShips.add(new CenterShip(d, line.getMaterial(), line.getOrderPacks() * line.getPackQty(), po.getPoNo(),
+                                po.getPoNumber(), store.getStoreName()));
+                    }
+                }
+                for (var o : directOrders.entrySet()) {
                     PurchaseOrder po = new PurchaseOrder();
                     po.setStore(store);
                     po.setClient(o.getKey());
+                    po.setKind(PurchaseOrder.KIND_DIRECT);
                     po.setOrderDate(d);
                     po.setExpectedDate(d.plusDays(Math.max(1, PurchaseOrderService.leadDays(o.getKey()))));
                     po.setStatus(PurchaseOrder.ORDERED);
                     po.setNote("매장 발주 요청 " + request.getRequestNumber());
                     po.setOrderedBy(user);
                     po.setCreatedAt(d.atTime(22, 45));
-                    po.setPoNumber(PurchaseOrderService.poNumber(store.getStoreCode(), d, ++seq));
+                    po.setPoNumber(nextDoc(PurchaseOrderService.docPrefix(PurchaseOrderService.PO, d)));
                     o.getValue().forEach((m, packCount) -> {
                         PurchaseOrderLine line = new PurchaseOrderLine();
                         line.setPurchaseOrder(po);
@@ -442,7 +605,7 @@ public class SimulationService {
                     r.setStatus(OrderRequest.REQUESTED);
                     r.setNote("주말 대비 추가 요청");
                     r.setCreatedAt(LocalDateTime.of(today, now).minusMinutes(30 + store.getStoreNo()));
-                    r.setRequestNumber(OrderRequestService.requestNumber(store.getStoreCode(), today, 1));
+                    r.setRequestNumber(nextDoc(OrderRequestService.requestPrefix(today)));
                     for (var e : low) {
                         Material m = materialByNo.get(e.getKey());
                         OrderRequestLine rl = new OrderRequestLine();
@@ -477,6 +640,12 @@ public class SimulationService {
             txnTotal += txnRows.size();
             jdbc.batchUpdate("insert into ingest_logs (store_no, data_type, business_date, received_at, record_count, status, message) values (?,?,?,?,?,?,?)", logRows);
             log.info("가상 데이터: {} 영수증 {} 줄 {}", store.getStoreName(), saleRows.size(), txnRows.size());
+        }
+
+        if (center != null && !centerShips.isEmpty()) {
+            int[] made = simulateCenter(center, start, today, centerShips, materials, user);
+            poTotal += made[0];
+            txnTotal += made[1];
         }
 
         // 월 마감: 지난달(가장 최근에 끝난 달)은 직접 해 볼 수 있게 남기고, 그 전 달까지만 마감
@@ -634,7 +803,7 @@ public class SimulationService {
                 }
                 // 가끔 연장 근무 (지난 날만)
                 String note = null;
-                if (!d.isAfter(until) && d.isBefore(LocalDate.now()) && rnd.nextDouble() < 0.06 && e.getHour() < 22) {
+                if (!d.isAfter(until) && d.isBefore(BizClock.today()) && rnd.nextDouble() < 0.06 && e.getHour() < 22) {
                     e = e.plusHours(1);
                     note = "연장 1시간";
                 }
@@ -644,6 +813,108 @@ public class SimulationService {
         jdbc.batchUpdate("insert into shifts (store_no, user_no, work_date, start_time, end_time, break_minutes, position, note) " +
                 "values (?,?,?,?,?,?,?,?)", rows);
         return rows.size();
+    }
+
+    // 물류센터가 매장으로 내보낸 한 줄
+    private record CenterShip(LocalDate date, Material material, double qty, Long poNo, String poNumber, String storeName) {}
+
+    // 물류센터 재고: 기초 재고(출고량 14일 치) → 매장 출고 → 월·목 정기 보충 발주 → 납품일 입고.
+    // 오늘 이후 도착할 보충 발주는 '발주완료'로 남겨 본사가 직접 입고 처리해 볼 수 있게 한다.
+    private int[] simulateCenter(Store center, LocalDate start, LocalDate today, List<CenterShip> ships, List<Material> materials, String user) {
+        String by = center.getStoreCode() + " 물류팀";
+        Map<LocalDate, List<CenterShip>> byDate = new HashMap<>();
+        Map<Long, Double> totalShip = new HashMap<>();
+        for (CenterShip s : ships) {
+            byDate.computeIfAbsent(s.date(), k -> new ArrayList<>()).add(s);
+            totalShip.merge(s.material().getMaterialNo(), s.qty(), Double::sum);
+        }
+        long span = Math.max(1, ChronoUnit.DAYS.between(start, today));
+        Map<Long, Double> avg = new HashMap<>();
+        totalShip.forEach((k, v) -> avg.put(k, v / span));
+
+        Map<Long, Double> stock = new HashMap<>();
+        List<Object[]> rows = new ArrayList<>();
+        List<PurchaseOrder> pending = new ArrayList<>();
+        int poCount = 0;
+        for (Material m : materials) {
+            double a = avg.getOrDefault(m.getMaterialNo(), 0.0);
+            if (a <= 0 || m.isDirect()) continue;
+            double qty = packs(a * 14, m);
+            stock.put(m.getMaterialNo(), qty);
+            rows.add(txn(center, m, start, InventoryTxn.OPENING, qty, null, "물류센터 기초 재고", null, null, Timestamp.valueOf(start.atTime(6, 0)), by));
+        }
+        for (LocalDate d = start; !d.isAfter(today); d = d.plusDays(1)) {
+            // 1) 보충 발주 입고 (오늘 도착분부터는 본사가 입고 처리하도록 남긴다)
+            for (Iterator<PurchaseOrder> it = pending.iterator(); it.hasNext(); ) {
+                PurchaseOrder po = it.next();
+                if (!po.getExpectedDate().isBefore(today) || po.getExpectedDate().isAfter(d)) continue;
+                for (PurchaseOrderLine line : po.getLines()) {
+                    line.setReceivedPacks(line.getOrderPacks());
+                    double qty = line.getOrderPacks() * line.getPackQty();
+                    stock.merge(line.getMaterial().getMaterialNo(), qty, Double::sum);
+                    rows.add(txn(center, line.getMaterial(), d, InventoryTxn.RECEIPT, qty, null, po.getPoNumber() + " · " + po.sourceName(),
+                            "PO", po.getPoNo(), Timestamp.valueOf(d.atTime(8, 0)), by));
+                }
+                po.setStatus(PurchaseOrder.RECEIVED);
+                po.setReceivedDate(d);
+                po.setReceivedBy(by);
+                poRepository.save(po);
+                it.remove();
+            }
+            // 2) 매장 출고
+            for (CenterShip s : byDate.getOrDefault(d, List.of())) {
+                stock.merge(s.material().getMaterialNo(), -s.qty(), Double::sum);
+                rows.add(txn(center, s.material(), d, InventoryTxn.SHIP, -s.qty(), null, s.poNumber() + " → " + s.storeName(),
+                        "PO", s.poNo(), Timestamp.valueOf(d.atTime(22, 45)), by));
+            }
+            // 3) 월·목 정기 보충: 다음 보충까지 + 납품 소요일 + 안전 3일 치 확보
+            DayOfWeek dow = d.getDayOfWeek();
+            if (d.isBefore(today) && (dow == DayOfWeek.MONDAY || dow == DayOfWeek.THURSDAY)) {
+                int cycle = dow == DayOfWeek.MONDAY ? 3 : 4;
+                Map<Client, Map<Material, Integer>> orders = new LinkedHashMap<>();
+                for (Material m : materials) {
+                    double a = avg.getOrDefault(m.getMaterialNo(), 0.0);
+                    if (a <= 0 || m.isDirect() || m.getClient() == null) continue;
+                    int lead = Math.max(1, PurchaseOrderService.leadDays(m.getClient()));
+                    double onOrder = pending.stream().flatMap(po -> po.getLines().stream())
+                            .filter(l -> l.getMaterial().getMaterialNo().equals(m.getMaterialNo()))
+                            .mapToDouble(l -> l.getOrderPacks() * l.getPackQty()).sum();
+                    double need = a * (cycle + lead + 3) - stock.getOrDefault(m.getMaterialNo(), 0.0) - onOrder;
+                    if (need <= 0) continue;
+                    orders.computeIfAbsent(m.getClient(), k -> new LinkedHashMap<>()).put(m, (int) Math.ceil(need / m.getPackQty()));
+                }
+                for (var o : orders.entrySet()) {
+                    PurchaseOrder po = new PurchaseOrder();
+                    po.setStore(center);
+                    po.setClient(o.getKey());
+                    po.setKind(PurchaseOrder.KIND_RESTOCK);
+                    po.setOrderDate(d);
+                    po.setExpectedDate(d.plusDays(Math.max(1, PurchaseOrderService.leadDays(o.getKey()))));
+                    po.setStatus(PurchaseOrder.ORDERED);
+                    po.setNote("물류센터 정기 보충");
+                    po.setOrderedBy(user);
+                    po.setCreatedAt(d.atTime(16, 0));
+                    po.setPoNumber(nextDoc(PurchaseOrderService.docPrefix(PurchaseOrderService.PO, d)));
+                    o.getValue().forEach((m, packCount) -> {
+                        PurchaseOrderLine line = new PurchaseOrderLine();
+                        line.setPurchaseOrder(po);
+                        line.setMaterial(m);
+                        line.setOrderPacks(packCount);
+                        line.setPackPrice(m.getMaterialPrice());
+                        line.setPackQty(m.getPackQty());
+                        po.getLines().add(line);
+                    });
+                    poRepository.save(po);
+                    pending.add(po);
+                    poCount++;
+                }
+            }
+        }
+        for (int i = 0; i < rows.size(); i += 5000) {
+            jdbc.batchUpdate(TXN_SQL, rows.subList(i, Math.min(i + 5000, rows.size())));
+        }
+        log.info("가상 데이터: {} 보충 발주 {} 재고 변동 {}", center.getStoreName(), poCount, rows.size());
+        return new int[]{poCount, rows.size()};
     }
 
     private static Object[] ingestLog(Store store, String type, LocalDate day, LocalDateTime at, int count, boolean ok, String message) {

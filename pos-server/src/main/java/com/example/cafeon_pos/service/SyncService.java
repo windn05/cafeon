@@ -1,5 +1,7 @@
 package com.example.cafeon_pos.service;
 
+import com.example.cafeon_pos.config.BizClock;
+
 import com.example.cafeon_pos.entity.*;
 import com.example.cafeon_pos.repository.*;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -59,7 +61,7 @@ public class SyncService {
         o.setPath(path);
         o.setPayload(write(body));
         o.setStatus(PosOutbox.WAITING);
-        o.setCreatedAt(LocalDateTime.now());
+        o.setCreatedAt(BizClock.now());
         return outboxRepository.save(o);
     }
 
@@ -101,41 +103,101 @@ public class SyncService {
             PosStore store = storeRepository.findByStoreCode(storeCode).orElse(null);
             if (store == null || store.isKeyRejected()) return 0;
             int sent = 0;
-            for (PosOutbox o : outboxRepository.findByStoreCodeAndStatusOrderByIdAsc(storeCode, PosOutbox.WAITING)) {
-                o.setAttempts(o.getAttempts() + 1);
-                try {
-                    JsonNode r = hq.post(store.getIntegrationKey(), o.getPath(), o.getPayload());
-                    o.setStatus(PosOutbox.DONE);
-                    o.setSentAt(LocalDateTime.now());
-                    o.setLastError(null);
-                    o.setResponse(cut(r.toString(), 4000));
-                    outboxRepository.save(o);
-                    afterSend(o);
-                    contact(store, null);
-                    sent++;
-                } catch (HqClient.Rejected e) {
-                    if (e.status() == 401) {
-                        // 키가 바뀌었거나 매장이 막힘: 이 건은 남겨 두고, 다시 등록하면 이어서 보낸다
-                        o.setLastError(cut(e.getMessage(), 300));
-                        outboxRepository.save(o);
-                        store.setKeyRejected(true);
-                        offline(store, e.getMessage());
-                        break;
+            List<PosOutbox> queue = outboxRepository.findByStoreCodeAndStatusOrderByIdAsc(storeCode, PosOutbox.WAITING);
+            for (int i = 0; i < queue.size(); ) {
+                // 판매는 줄지어 쌓인 것끼리 묶어 한 번에 보낸다 (본사가 멈췄다 돌아왔을 때 밀린 영수증을 빨리 보내려고)
+                List<PosOutbox> group = new ArrayList<>(List.of(queue.get(i)));
+                if (SALES.equals(group.get(0).getDataType())) {
+                    while (i + group.size() < queue.size() && group.size() < SALES_BATCH && SALES.equals(queue.get(i + group.size()).getDataType())) {
+                        group.add(queue.get(i + group.size()));
                     }
-                    o.setStatus(PosOutbox.FAILED);
-                    o.setLastError(cut(e.getMessage(), 300));
-                    outboxRepository.save(o);
-                    afterSend(o);
-                    contact(store, null);
-                } catch (HqClient.Unavailable e) {
-                    o.setLastError(cut("본사 연결 안 됨 · " + e.getMessage(), 300));
-                    outboxRepository.save(o);
-                    offline(store, "본사 서버에 연결할 수 없습니다.");
-                    break;
                 }
+                i += group.size();
+                Result r = group.size() == 1 ? send(store, group.get(0), group.get(0).getPayload()) : send(store, group, salesPayload(group));
+                if (r == Result.STOP) break;
+                if (r == Result.SENT) sent += group.size();
             }
             storeRepository.save(store);
             return sent;
+        }
+    }
+
+    private static final String SALES = "판매";
+    private static final int SALES_BATCH = 100;
+
+    private enum Result { SENT, FAILED, STOP }
+
+    // 묶음 전송: 본사가 거절하면(영수증 하나에 문제) 하나씩 다시 보내 문제 있는 것만 실패로 남긴다
+    private Result send(PosStore store, List<PosOutbox> group, String payload) {
+        group.forEach(o -> o.setAttempts(o.getAttempts() + 1));
+        try {
+            JsonNode r = hq.post(store.getIntegrationKey(), group.get(0).getPath(), payload);
+            for (PosOutbox o : group) done(o, r);
+            contact(store, null);
+            return Result.SENT;
+        } catch (HqClient.Rejected e) {
+            if (e.status() == 401) return send(store, group.get(0), group.get(0).getPayload());
+            group.forEach(o -> o.setAttempts(o.getAttempts() - 1));
+            for (PosOutbox o : group) {
+                if (send(store, o, o.getPayload()) == Result.STOP) return Result.STOP;
+            }
+            return Result.SENT;
+        } catch (HqClient.Unavailable e) {
+            for (PosOutbox o : group) {
+                o.setLastError(cut("본사 연결 안 됨 · " + e.getMessage(), 300));
+                outboxRepository.save(o);
+            }
+            offline(store, "본사 서버에 연결할 수 없습니다.");
+            return Result.STOP;
+        }
+    }
+
+    private Result send(PosStore store, PosOutbox o, String payload) {
+        o.setAttempts(o.getAttempts() + 1);
+        try {
+            done(o, hq.post(store.getIntegrationKey(), o.getPath(), payload));
+            contact(store, null);
+            return Result.SENT;
+        } catch (HqClient.Rejected e) {
+            if (e.status() == 401) {
+                // 키가 바뀌었거나 매장이 막힘: 이 건은 남겨 두고, 다시 등록하면 이어서 보낸다
+                o.setLastError(cut(e.getMessage(), 300));
+                outboxRepository.save(o);
+                store.setKeyRejected(true);
+                offline(store, e.getMessage());
+                return Result.STOP;
+            }
+            o.setStatus(PosOutbox.FAILED);
+            o.setLastError(cut(e.getMessage(), 300));
+            outboxRepository.save(o);
+            afterSend(o);
+            contact(store, null);
+            return Result.FAILED;
+        } catch (HqClient.Unavailable e) {
+            o.setLastError(cut("본사 연결 안 됨 · " + e.getMessage(), 300));
+            outboxRepository.save(o);
+            offline(store, "본사 서버에 연결할 수 없습니다.");
+            return Result.STOP;
+        }
+    }
+
+    private void done(PosOutbox o, JsonNode response) {
+        o.setStatus(PosOutbox.DONE);
+        o.setSentAt(BizClock.now());
+        o.setLastError(null);
+        o.setResponse(cut(response.toString(), 4000));
+        outboxRepository.save(o);
+        afterSend(o);
+    }
+
+    // 판매 전송 내용은 영수증 1장짜리 배열이라, 여러 장을 한 배열로 합친다
+    private String salesPayload(List<PosOutbox> group) {
+        try {
+            com.fasterxml.jackson.databind.node.ArrayNode all = json.createArrayNode();
+            for (PosOutbox o : group) json.readTree(o.getPayload()).forEach(all::add);
+            return json.writeValueAsString(all);
+        } catch (Exception e) {
+            throw new IllegalStateException("판매 전송 내용을 합치지 못했습니다: " + e.getMessage());
         }
     }
 
@@ -163,11 +225,11 @@ public class SyncService {
             try {
                 boolean menuChanged = pullInbox(store);
                 LocalDateTime m = store.getMasterSyncedAt();
-                if (forceMaster || menuChanged || m == null || m.isBefore(LocalDateTime.now().minusMinutes(MASTER_REFRESH_MINUTES))) {
+                if (forceMaster || menuChanged || m == null || m.isBefore(BizClock.now().minusMinutes(MASTER_REFRESH_MINUTES))) {
                     pullMaster(store);
                 }
                 store.setSnapshotJson(hq.get(store.getIntegrationKey(), "/today").toString());
-                store.setSnapshotAt(LocalDateTime.now());
+                store.setSnapshotAt(BizClock.now());
                 contact(store, null);
             } catch (HqClient.Rejected e) {
                 if (e.status() == 401) store.setKeyRejected(true);
@@ -200,12 +262,12 @@ public class SyncService {
             m.setDueDate(n.hasNonNull("dueDate") ? LocalDate.parse(n.get("dueDate").asText()) : null);
             m.setSentBy(text(n, "sentBy"));
             m.setSentAt(n.hasNonNull("sentAt") ? LocalDateTime.parse(n.get("sentAt").asText()) : null);
-            m.setReceivedAt(LocalDateTime.now());
+            m.setReceivedAt(BizClock.now());
             messageRepository.save(m);
             if (MENU_KIND.equals(m.getKind())) menuChanged = true;
         }
         store.setInboxCursor(cursor);
-        store.setInboxSyncedAt(LocalDateTime.now());
+        store.setInboxSyncedAt(BizClock.now());
         return menuChanged;
     }
 
@@ -225,6 +287,7 @@ public class SyncService {
                 m.setCategory(text(n, "category"));
                 m.setPrice(n.path("price").asLong());
                 m.setStatus(text(n, "status"));
+                m.setProductType(text(n, "productType"));
                 m.setRecipeJson(n.path("recipe").toString());
                 m.setSortOrder(order++);
                 menuRepository.save(m);
@@ -245,7 +308,7 @@ public class SyncService {
         });
         store.setStoreName(text(master, "storeName"));
         store.setStoreType(text(master, "storeType"));
-        store.setMasterSyncedAt(LocalDateTime.now());
+        store.setMasterSyncedAt(BizClock.now());
     }
 
     // ----- 상태 -----
@@ -266,7 +329,7 @@ public class SyncService {
 
     private void contact(PosStore s, String error) {
         s.setOnline(true);
-        s.setLastContactAt(LocalDateTime.now());
+        s.setLastContactAt(BizClock.now());
         s.setLastError(error);
     }
 

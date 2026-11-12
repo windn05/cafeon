@@ -9,5 +9,6 @@ public interface PosOutboxRepository extends JpaRepository<PosOutbox, Long> {
     List<PosOutbox> findByStoreCodeAndStatusOrderByIdAsc(String storeCode, String status);
     List<PosOutbox> findTop100ByStoreCodeOrderByIdDesc(String storeCode);
     long countByStoreCodeAndStatus(String storeCode, String status);
+    long countByStoreCodeAndDataTypeAndRefNo(String storeCode, String dataType, String refNo);
     boolean existsByStoreCodeAndDataTypeAndRefNoAndStatusIn(String storeCode, String dataType, String refNo, Collection<String> statuses);
 }

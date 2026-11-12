@@ -20,7 +20,9 @@ import Schedule from "./pages/Weekly/Schedule";
 import Pnl from "./pages/Monthly/Pnl";
 import MenuAnalysis from "./pages/Monthly/Menus";
 import Requests from "./pages/Purchase/Requests";
+import Center from "./pages/Purchase/Center";
 import Integration from "./pages/Integration";
+import Simulator from "./pages/Integration/Simulator";
 import PosApp from "./Pos/PosApp";
 import Messages from "./pages/Messages";
 import ProtectedRoute from "./components/ProtectedRoute/ProtectedRoute";
@@ -62,6 +64,7 @@ const App = () => {
             <Route path="monitor/labor" element={<Schedule />} />
             {/* 구매 · 물류 */}
             <Route path="purchase/requests" element={<Requests />} />
+            <Route path="purchase/center" element={<Center />} />
             <Route path="purchase/orders" element={<Orders />} />
             {/* 경영 분석 */}
             <Route path="analysis/pnl" element={<Pnl />} />
@@ -69,7 +72,9 @@ const App = () => {
             {/* 매장 공지 · 지시 (본사 → 매장 POS) */}
             <Route path="messages" element={<Messages />} />
             {/* 데이터 수집 */}
-            <Route path="integration" element={<Integration />} />
+            <Route path="integration" element={<Navigate to="/erp/integration/status" replace />} />
+            <Route path="integration/status" element={<Integration />} />
+            <Route path="integration/simulator" element={<Simulator />} />
           </Route>
           {/* 매장 POS: 본사 로그인과 별개 시스템 (매장 연동 키로 기기 등록) */}
           <Route path="/pos" element={<PosApp />} />

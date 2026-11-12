@@ -1,5 +1,7 @@
 package com.example.docksystem_erp.service.Monthly;
 
+import com.example.docksystem_erp.util.BizClock;
+
 import com.example.docksystem_erp.entity.Inventory.InventoryTxn;
 import com.example.docksystem_erp.entity.Monthly.MonthlyClosing;
 import com.example.docksystem_erp.entity.Store.Store;
@@ -46,7 +48,7 @@ public class MonthlyService {
 
     public static YearMonth parse(String month) {
         try {
-            return month == null || month.isBlank() ? YearMonth.now() : YearMonth.parse(month);
+            return month == null || month.isBlank() ? YearMonth.from(BizClock.today()) : YearMonth.parse(month);
         } catch (DateTimeParseException e) {
             throw new IllegalArgumentException("월은 2026-10 형식으로 입력해 주세요.");
         }
@@ -195,7 +197,7 @@ public class MonthlyService {
     public Map<String, Object> close(Long storeNo, String month, String note) {
         Store store = guard.store(storeNo);
         YearMonth ym = parse(month);
-        if (!ym.atEndOfMonth().isBefore(LocalDate.now())) {
+        if (!ym.atEndOfMonth().isBefore(BizClock.today())) {
             throw new IllegalStateException(ym + "은(는) 아직 끝나지 않은 달이라 마감할 수 없습니다.");
         }
         if (monthlyRepository.existsByStore_StoreNoAndYearMonth(storeNo, ym.toString())) {
@@ -223,7 +225,7 @@ public class MonthlyService {
         mc.setReceiptCount((int) num(st, "receipts"));
         mc.setNote(note);
         mc.setClosedBy(CurrentUser.id());
-        mc.setClosedAt(LocalDateTime.now());
+        mc.setClosedAt(BizClock.now());
         monthlyRepository.save(mc);
         return closingMap(mc);
     }
@@ -238,7 +240,7 @@ public class MonthlyService {
 
     // 집계 기간: 지난 달은 1일~말일, 진행 중인 달은 1일~어제
     private Map<String, Object> basis(YearMonth ym) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = BizClock.today();
         LocalDate from = ym.atDay(1);
         LocalDate end = ym.atEndOfMonth();
         if (from.isAfter(today)) throw new IllegalArgumentException("아직 오지 않은 달입니다: " + ym);

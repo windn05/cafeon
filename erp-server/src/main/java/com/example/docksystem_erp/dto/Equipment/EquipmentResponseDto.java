@@ -1,5 +1,7 @@
 package com.example.docksystem_erp.dto.Equipment;
 
+import com.example.docksystem_erp.util.BizClock;
+
 import com.example.docksystem_erp.entity.Equipment.Equipment;
 import com.example.docksystem_erp.entity.Equipment.EquipmentType;
 import com.fasterxml.jackson.annotation.JsonFormat;
@@ -40,7 +42,7 @@ public class EquipmentResponseDto {
         dto.setTypeLabel(equipment.getType().getLabel()); // type 한글값 저장 ex) 가동
         dto.setEquipPrice(equipment.getEquipPrice());
         dto.setEquipPurchaseDate(equipment.getEquipPurchaseDate());
-        dto.applyDepreciation(equipment, LocalDate.now());
+        dto.applyDepreciation(equipment, BizClock.today());
         dto.setEquipCategory(equipment.getEquipCategory());
         if (equipment.getStore() != null) {
             dto.setStoreNo(equipment.getStore().getStoreNo());

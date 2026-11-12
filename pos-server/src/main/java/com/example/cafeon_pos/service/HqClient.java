@@ -56,7 +56,15 @@ public class HqClient {
         return call(key, HttpMethod.POST, path, bodyJson);
     }
 
+    // 개발 · 시험용: 본사 연결이 끊긴 것처럼 (매장 영업 시뮬레이터의 본사 연결 끊김)
+    private static volatile boolean simulatedOffline;
+
+    public static void setSimulatedOffline(boolean on) {
+        simulatedOffline = on;
+    }
+
     private JsonNode call(String key, HttpMethod method, String path, String bodyJson) {
+        if (simulatedOffline) throw new Unavailable("본사 연결 끊김 (시험)");
         HttpHeaders headers = new HttpHeaders();
         headers.set(KEY_HEADER, key);
         headers.setContentType(MediaType.APPLICATION_JSON);

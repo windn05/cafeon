@@ -1,3 +1,6 @@
 # 이 파일을 local.properties로 복사하고 값을 채운다 (local.properties는 깃에 올라가지 않는다)
 # POS 로그인 토큰 서명 키: 64자 이상 임의 문자열
 pos.jwt.secret=
+
+# 개발 · 시험용 매장 영업 시뮬레이터 API (본사 ERP가 POS 업무 시계를 맞춤). 운영에서는 false
+pos.dev.enabled=true

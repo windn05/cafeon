@@ -1,5 +1,7 @@
 package com.example.docksystem_erp.service.Sales;
 
+import com.example.docksystem_erp.util.BizClock;
+
 import com.example.docksystem_erp.entity.Store.Store;
 import com.example.docksystem_erp.repository.Closing.DailyClosingRepository;
 import com.example.docksystem_erp.repository.Store.StoreRepository;
@@ -56,7 +58,7 @@ public class OpsGuard {
 
     // 마감한 날은 판매·폐기를 고칠 수 없다
     public void requireOpenDay(Store store, LocalDate date) {
-        if (date.isAfter(LocalDate.now())) {
+        if (date.isAfter(BizClock.today())) {
             throw new IllegalArgumentException("미래 날짜에는 기록할 수 없습니다.");
         }
         requireOpenMonth(store, date);
