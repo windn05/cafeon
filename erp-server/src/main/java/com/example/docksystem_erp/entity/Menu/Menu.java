@@ -7,7 +7,7 @@ import lombok.Setter;
 import java.util.ArrayList;
 import java.util.List;
 
-// 판매 메뉴. 레시피(식자재 × 사용량)로 원가를 계산한다.
+// 판매 메뉴. 매장 제조 메뉴는 레시피(식자재 × 사용량)로, 완제품 메뉴는 납품 품목 1개로 원가를 계산한다.
 @Entity
 @Getter
 @Setter
@@ -31,6 +31,19 @@ public class Menu {
     private String status;
     @Column(length = 500)
     private String description;
+    // 제공 방식: 매장 제조(레시피대로 만듦) · 완제품(납품받은 그대로 판매, 베이커리 · 디저트 등)
+    public static final String MADE = "매장 제조";
+    public static final String FINISHED = "완제품";
+    @Column(length = 10)
+    private String productType;
+
+    public String productTypeOrDefault() {
+        return productType == null ? MADE : productType;
+    }
+
+    public boolean isFinished() {
+        return FINISHED.equals(productType);
+    }
 
     @OneToMany(mappedBy = "menu", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("recipeNo ASC")

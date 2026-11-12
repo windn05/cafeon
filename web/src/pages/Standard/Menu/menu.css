@@ -1,72 +1,4 @@
-/* 등록 팝업: 레시피 입력 */
-.recipe-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 150px 80px 32px;
-  align-items: start;
-  gap: 8px;
-}
-
-.recipe-row .ant-form-item {
-  margin-bottom: 10px;
-}
-
-.recipe-head {
-  margin-bottom: 4px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--muted);
-}
-
-.recipe-cost {
-  padding-top: 5px;
-  font-size: 14px;
-  text-align: right;
-  color: var(--ink-2);
-}
-
-.recipe-head .recipe-cost {
-  padding-top: 0;
-  color: var(--muted);
-}
-
-.recipe-total {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-top: 14px;
-  padding: 12px 14px;
-  background: var(--raised);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-}
-
-.recipe-total span {
-  display: block;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.recipe-total strong {
-  font-size: 16px;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
-}
-
-.recipe-total strong.is-green { color: var(--pos); }
-.recipe-total strong.is-amber { color: var(--warn); }
-.recipe-total strong.is-red { color: var(--neg); }
-
-@media (max-width: 560px) {
-  .recipe-row {
-    grid-template-columns: minmax(0, 1fr) 110px 32px;
-  }
-
-  .recipe-row .recipe-cost {
-    display: none;
-  }
-}
-
-/* 상세 창 */
+/* 메뉴 상세 패널: 원가 숫자 + 레시피(또는 납품 품목) 편집 */
 .mb-detail {
   display: flex;
   flex-direction: column;
@@ -74,7 +6,8 @@
 }
 
 .mb-detail-actions {
-  display: inline-flex;
+  display: flex;
+  flex: none;
   gap: 8px;
 }
 
@@ -93,43 +26,38 @@
   color: var(--ink-2);
 }
 
-.mb-detail-actions {
-  display: flex;
-  flex: none;
-  gap: 8px;
-}
-
 .mb-figures {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 
 .mb-figures > div {
   display: flex;
   flex-direction: column;
-  padding: 16px;
+  padding: 12px 14px;
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 12px;
 }
 
 .mb-figures span {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--muted);
 }
 
 .mb-figures b {
-  margin-top: 8px;
-  font-size: 24px;
+  margin-top: 6px;
+  font-size: 20px;
   font-weight: 600;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .mb-figures small {
   margin-top: 6px;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--muted);
 }
 
@@ -137,93 +65,80 @@
 .mb-figures .is-amber b { color: var(--warn); }
 .mb-figures .is-red b { color: var(--neg); }
 
-.mb-recipe h4 {
-  margin: 0 0 12px;
+.mb-recipe {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mb-recipe-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mb-recipe-head h4 {
+  margin: 0;
   font-size: 15px;
   font-weight: 600;
 }
 
-.mb-recipe h4 span {
-  margin-left: 4px;
-  font-weight: 400;
+.mb-recipe-actions {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.mb-recipe-table .ant-table-cell {
+  vertical-align: middle;
+}
+
+.mb-opt small {
+  margin-left: 6px;
   color: var(--muted);
 }
 
-.mb-recipe ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-}
-
-.mb-recipe li {
-  display: grid;
-  grid-template-columns: minmax(140px, 1.2fr) minmax(80px, 1fr) 110px;
-  align-items: center;
-  gap: 16px;
-  padding: 12px 16px;
-}
-
-.mb-recipe li + li {
-  border-top: 1px solid var(--line-soft);
-}
-
-.mb-ing {
+.mb-line-cost {
   display: flex;
   flex-direction: column;
-}
-
-.mb-ing b {
-  font-size: 15px;
-  font-weight: 500;
-}
-
-.mb-ing small {
-  font-size: 13px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
+  align-items: flex-end;
+  gap: 3px;
 }
 
 .mb-share {
-  height: 6px;
-  overflow: hidden;
-  background: var(--line-soft);
-  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  width: 100%;
 }
 
 .mb-share i {
   display: block;
-  height: 100%;
-  background: #d6d3d1;
-  border-radius: 3px;
-}
-
-.mb-share i.is-top {
+  height: 5px;
+  min-width: 2px;
+  max-width: 54px;
   background: var(--accent);
+  border-radius: 3px;
+  opacity: 0.75;
 }
 
-.mb-cost {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  font-size: 15px;
-  font-variant-numeric: tabular-nums;
-}
-
-.mb-cost small {
-  font-size: 13px;
+.mb-share small {
+  min-width: 28px;
+  font-size: 11px;
+  text-align: right;
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .mb-note {
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--muted);
 }
 
-@media (max-width: 1100px) {
-  .mb-detail { position: static; }
-  .mb-figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 700px) {
+  .mb-figures {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

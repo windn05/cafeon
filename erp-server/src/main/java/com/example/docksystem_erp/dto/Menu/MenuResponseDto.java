@@ -15,6 +15,10 @@ public class MenuResponseDto {
     private Long price;
     private String status;
     private String description;
+    // 매장 제조 · 완제품. 완제품은 recipe에 납품 품목 1줄(1개)만 있다
+    private String productType;
+    private Long productMaterialNo;
+    private String productMaterialName;
     private List<Line> recipe;
     // 1개 원가 (원)
     private double cost;
@@ -53,6 +57,11 @@ public class MenuResponseDto {
         dto.setPrice(menu.getPrice());
         dto.setStatus(menu.getStatus());
         dto.setDescription(menu.getDescription());
+        dto.setProductType(menu.productTypeOrDefault());
+        if (menu.isFinished() && !menu.getRecipeItems().isEmpty()) {
+            dto.setProductMaterialNo(menu.getRecipeItems().get(0).getMaterial().getMaterialNo());
+            dto.setProductMaterialName(menu.getRecipeItems().get(0).getMaterial().getMaterialName());
+        }
         dto.setRecipe(menu.getRecipeItems().stream().map(Line::of).toList());
         double cost = menu.getCost();
         dto.setCost(round(cost));

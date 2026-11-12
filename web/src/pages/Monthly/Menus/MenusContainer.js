@@ -48,7 +48,6 @@ const MenusContainer = () => {
     <ConfigProvider theme={{ token: { colorPrimary: ACCENT } }}>
       <div className="dash dash-erp">
         <DashHeader
-          title="메뉴 분석"
           subtitle="한 달 판매량(인기도)과 1개당 공헌이익(수익성)으로 메뉴를 4가지로 나눕니다. 메뉴판 구성·가격·프로모션을 정할 때 씁니다."
           extra={
             <div className="ops-toolbar">

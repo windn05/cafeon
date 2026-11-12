@@ -30,6 +30,12 @@ public class MenuController {
         return menuService.update(menuNo, dto);
     }
 
+    // 레시피만 저장: 식자재와 1개당 사용량 목록을 통째로 보내면 바뀐 줄만 반영
+    @PutMapping("/{menuNo}/recipe")
+    public MenuResponseDto updateRecipe(@PathVariable("menuNo") Long menuNo, @RequestBody java.util.List<MenuRequestDto.Line> lines) {
+        return menuService.updateRecipe(menuNo, lines);
+    }
+
     @DeleteMapping("/{menuNo}")
     public ResponseEntity<Void> delete(@PathVariable("menuNo") Long menuNo) {
         menuService.delete(menuNo);
