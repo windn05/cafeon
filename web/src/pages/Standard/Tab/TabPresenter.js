@@ -1,4 +1,4 @@
-// 직원 관리: 왼쪽 조직도(본사 부서 · 매장)에서 소속을 고르면 오른쪽에 그 소속 직원 카드.
+// 직원 관리: 왼쪽 조직도(본사 부서 · 사업장)에서 소속을 고르면 오른쪽에 그 소속 직원 카드.
 // 부서는 조직도에서 바로 고치고, 직급은 자주 바꾸지 않으니 [직급 설정] 창에서 관리한다.
 import { useMemo, useState } from "react";
 import { Modal } from "antd";
@@ -23,7 +23,7 @@ const TabPresenter = () => {
   const view = useMemo(() => {
     const all = users.data;
     if (node.kind === "hq") {
-      return { rows: all.filter((u) => !u.storeNo), title: "본사", description: "본사 소속 직원입니다. 소속 매장을 비워 두면 본사 직원이 됩니다.", initial: {} };
+      return { rows: all.filter((u) => !u.storeNo), title: "본사", description: "본사 소속 직원입니다. 소속 사업장을 비워 두면 본사 직원이 됩니다.", initial: {} };
     }
     if (node.kind === "dept") {
       const d = departments.data.find((x) => x.departmentNo === node.no);
@@ -34,28 +34,23 @@ const TabPresenter = () => {
         initial: { departmentNo: node.no },
       };
     }
-    if (node.kind === "kitchen") {
-      const nos = stores.data.filter((s) => s.storeType === "센트럴키친").map((s) => s.storeNo);
-      return { rows: all.filter((u) => nos.includes(u.storeNo)), title: "센트럴키친", description: "센트럴키친 소속 직원입니다.", initial: {} };
-    }
     if (node.kind === "store") {
       const s = stores.data.find((x) => x.storeNo === node.no);
       return {
         rows: all.filter((u) => u.storeNo === node.no),
-        title: s?.storeName || "매장",
-        description: s ? `${s.storeType} · 점장 ${s.managerName || "미지정"}` : "",
+        title: s?.storeName || "사업장",
+        description: s ? `${s.storeType} · ${s.storeType === "물류센터" ? "센터장" : "점장"} ${s.managerName || "미지정"}` : "",
         initial: { storeNo: node.no },
       };
     }
-    return { rows: all, title: "전체 직원", description: "본사와 모든 매장의 직원입니다. 왼쪽 조직도에서 소속을 고르면 그 직원만 보입니다.", initial: {} };
+    return { rows: all, title: "전체 직원", description: "본사와 모든 사업장의 직원입니다. 왼쪽 조직도에서 소속을 고르면 그 직원만 보입니다.", initial: {} };
   }, [node, users.data, departments.data, stores.data]);
 
   return (
     <div className="crud-page">
       <div className="crud-head">
         <div>
-          <h1 className="crud-title">직원 관리</h1>
-          <p className="crud-desc">왼쪽 조직도에서 본사 부서나 매장을 고르면 그 소속 직원이 보입니다. 부서는 조직도에서 바로 추가하거나 이름을 바꿀 수 있습니다.</p>
+          <p className="crud-desc">왼쪽 조직도에서 본사 부서나 사업장을 고르면 그 소속 직원이 보입니다. 부서는 조직도에서 바로 추가하거나 이름을 바꿀 수 있습니다.</p>
         </div>
       </div>
 

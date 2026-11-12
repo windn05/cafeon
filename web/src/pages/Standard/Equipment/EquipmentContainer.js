@@ -1,4 +1,4 @@
-// 자산 관리: 직영점 · 센트럴키친 · 물류센터에 둔 본사 자산 대장
+// 자산 관리: 직영점 · 물류센터에 둔 본사 자산 대장
 // 감가상각은 서버가 취득가 · 취득일 · 내용연수로 계산해 준다 (정액법 · 월할 · 잔존가치 0)
 import { ToolOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
@@ -60,7 +60,6 @@ const COLUMNS = [
   { title: "취득가", dataIndex: "equipPrice", align: "right", sorter: byNum((r) => r.equipPrice), render: money },
   { title: "내용연수", dataIndex: "usefulLifeYears", align: "right", sorter: byNum((r) => r.usefulLifeYears), render: (v) => <span className="crud-num">{v}년</span> },
   { title: "상각 진행", key: "progress", sorter: byNum((r) => r.elapsedMonths / ((r.usefulLifeYears || DEFAULT_LIFE) * 12)), render: (_, r) => <Progress r={r} /> },
-  { title: "월 상각액", dataIndex: "monthlyDepreciation", align: "right", sorter: byNum((r) => r.monthlyDepreciation), render: money },
   { title: "상각 누계", dataIndex: "accumulatedDepreciation", align: "right", sorter: byNum((r) => r.accumulatedDepreciation), render: money },
   {
     title: "장부가",
@@ -79,8 +78,7 @@ const EquipmentContainer = () => {
 
   return (
     <CrudPage
-      title="자산 관리"
-      description="직영점·센트럴키친·물류센터에 둔 본사 자산입니다. 취득가와 내용연수로 감가상각(정액법, 월할)을 자동 계산합니다. 가맹점 설비는 점주 소유라 등록하지 않습니다."
+      description="직영점·물류센터에 둔 본사 자산입니다. 취득가와 내용연수로 감가상각(정액법, 월할)을 자동 계산합니다. 가맹점 설비는 점주 소유라 등록하지 않습니다."
       entity="자산"
       icon={<ToolOutlined />}
       rowKey="equipNo"

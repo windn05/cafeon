@@ -1,4 +1,4 @@
-// 직원 관리 왼쪽 조직도: 본사 부서 · 매장을 인원수와 함께 보여 주고, 부서는 여기서 바로 추가 · 이름 변경 · 삭제한다
+// 직원 관리 왼쪽 조직도: 본사 부서 · 사업장을 인원수와 함께 보여 주고, 부서는 여기서 바로 추가 · 이름 변경 · 삭제한다
 import { useState } from "react";
 import { Button, Input, Popconfirm, Tooltip, message } from "antd";
 import { CheckOutlined, CloseOutlined, DeleteOutlined, EditOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
@@ -58,10 +58,8 @@ const OrgPanel = ({ users, departments, stores, node, setNode, onCreateDept, onR
   const storeIn = (no) => users.filter((u) => u.storeNo === no).length;
   const is = (kind, no) => node.kind === kind && (no === undefined || node.no === no);
 
-  // 센트럴키친은 본사처럼 따로 맨 위 묶음으로, 나머지(직영 · 가맹 · 물류센터)는 매장 아래로
-  const kitchens = stores.filter((s) => s.storeType === "센트럴키친");
-  const shops = stores.filter((s) => s.storeType !== "센트럴키친");
-  const kitchenCount = kitchens.reduce((n, s) => n + storeIn(s.storeNo), 0);
+  // 본사가 직원을 두는 사업장: 직영점 · 물류센터 (가맹점 직원은 점주 관리)
+  const shops = stores.filter((s) => s.storeType !== "가맹점");
 
   const run = async (fn, ok) => {
     try {
@@ -131,27 +129,8 @@ const OrgPanel = ({ users, departments, stores, node, setNode, onCreateDept, onR
         </div>
       </div>
 
-      {kitchens.length > 0 && (
-        <div className="org-section">
-          {/* 센트럴키친이 한 곳이면 그 곳을 바로 고르고, 여러 곳이면 아래에 펼친다 */}
-          <Node
-            active={kitchens.length === 1 ? is("store", kitchens[0].storeNo) : is("kitchen")}
-            label="센트럴키친"
-            count={kitchenCount}
-            onClick={() => setNode(kitchens.length === 1 ? { kind: "store", no: kitchens[0].storeNo } : { kind: "kitchen" })}
-          />
-          {kitchens.length > 1 && (
-            <div className="org-children">
-              {kitchens.map((s) => (
-                <Node key={s.storeNo} active={is("store", s.storeNo)} label={s.storeName} count={storeIn(s.storeNo)} onClick={() => setNode({ kind: "store", no: s.storeNo })} />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
       <div className="org-section">
-        <p className="org-heading">매장</p>
+        <p className="org-heading">사업장</p>
         <div className="org-children">
           {shops.map((s) => (
             <Node
@@ -164,7 +143,7 @@ const OrgPanel = ({ users, departments, stores, node, setNode, onCreateDept, onR
             />
           ))}
         </div>
-        <p className="org-hint">매장은 [기준 정보 · 매장]에서 관리합니다</p>
+        <p className="org-hint">사업장은 [기준 정보 · 사업장]에서 관리합니다. 가맹점 직원은 점주가 관리합니다</p>
       </div>
 
       <Button className="org-roles" icon={<SettingOutlined />} onClick={onOpenRoles} block>

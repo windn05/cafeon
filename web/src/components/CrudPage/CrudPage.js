@@ -12,6 +12,7 @@ import {
   Modal,
   Popconfirm,
   Row,
+  Segmented,
   Select,
   Space,
   Table,
@@ -449,8 +450,10 @@ const CrudPage = ({
   rowActions,
   // 행을 누르면 여는 상세 화면: ({ record, close, edit, DeleteButton }) => 노드. 없으면 행을 누를 때 수정 창을 연다
   renderDetail,
+  // 검색칸 왼쪽 구분 (예: 매장 / 물류센터): { value, onChange, options: [{ value, label }] }. 거르기는 부르는 쪽이 data로 한다
+  views,
 }) => {
-  const entityName = entity || title.replace(/ 관리$/, "");
+  const entityName = entity || (title || "").replace(/ 관리$/, "");
   const [search, setSearch] = useState("");
   const [searchBy, setSearchBy] = useState("all"); // 검색 조건: "all" 또는 searchFields 순번
   const [colFilters, setColFilters] = useState({}); // 열 제목에서 고른 값 { [열 key]: [값...] }
@@ -610,7 +613,7 @@ const CrudPage = ({
       <div className={`crud-page ${embedded ? "is-embedded" : ""}`}>
         <div className="crud-head">
           <div>
-            {embedded ? <h2 className="crud-title is-small">{title}</h2> : <h1 className="crud-title">{title}</h1>}
+            {embedded && <h2 className="crud-title is-small">{title}</h2>}
             {description && <p className="crud-desc">{description}</p>}
           </div>
           {onCreate && (
@@ -622,6 +625,7 @@ const CrudPage = ({
 
         <div className="crud-card">
           <div className="crud-toolbar">
+            {views && <Segmented className="crud-views" value={views.value} onChange={views.onChange} options={views.options} />}
             <Space.Compact className="crud-search">
               {searchFields.length > 1 && (
                 <Select
@@ -690,14 +694,14 @@ const CrudPage = ({
             onChange={(_, filters) => setColFilters(filters)}
             rowClassName={() => (renderDetail || onUpdate ? "is-clickable" : "")}
             onRow={(record) => ({ onClick: () => openRow(record) })}
-            pagination={
-              rows.length > 20 && {
-                defaultPageSize: 20,
-                showSizeChanger: true,
-                pageSizeOptions: [20, 50, 100],
-                showTotal: (total, range) => `${range[0]}-${range[1]} / ${total}건`,
-              }
-            }
+            // 처음부터 같은 설정을 줘야 20개씩이 적용된다 (불러오기 전 false였다가 바뀌면 10개로 굳는다)
+            pagination={{
+              defaultPageSize: 20,
+              hideOnSinglePage: true,
+              showSizeChanger: rows.length > 20,
+              pageSizeOptions: [20, 50, 100],
+              showTotal: (total, range) => `${range[0]}-${range[1]} / ${total}건`,
+            }}
             locale={{ emptyText }}
           />
         </div>

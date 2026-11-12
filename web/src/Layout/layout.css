@@ -8,9 +8,9 @@
 }
 
 /* ----- 사이드바 ----- */
-/* 사이드바와 상단 바는 같은 틀 색으로 이어지고, 본문 판만 밝게 떠 있다 */
+/* 사이드바는 오른쪽 선 한 줄로 상단 바 · 본문과 구분한다 */
 .layout .erp-sider {
-  border-right: none;
+  border-right: 1px solid var(--chrome-line);
 }
 
 .layout .erp-sider .ant-layout-sider-children {
@@ -74,10 +74,49 @@
 /* ----- 상단 바 ----- */
 .main-header {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  line-height: 1;
+}
+
+/* 지금 화면의 메뉴명. 본문 안쪽 여백(32px)과 왼쪽 선을 맞춘다 */
+.layout .main-header {
+  padding-left: 32px;
+}
+
+.header-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.header-title h1 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.header-group {
+  font-size: 14px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.header-sep {
+  font-size: 14px;
+  color: var(--faint);
+}
+
+.header-user {
+  display: flex;
   align-items: center;
   gap: 4px;
-  line-height: 1;
+  flex: none;
 }
 
 .user-name {
@@ -114,9 +153,7 @@
   min-height: calc(100vh - 56px);
   background: var(--bg);
   border-top: 1px solid var(--chrome-line);
-  border-left: 1px solid var(--chrome-line);
-  border-top-left-radius: 14px;
-  box-shadow: -1px -1px 3px rgba(23, 23, 23, 0.03);
+  box-shadow: 0 -1px 3px rgba(23, 23, 23, 0.03);
 }
 
 .main-inner {

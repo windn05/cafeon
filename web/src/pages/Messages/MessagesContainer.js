@@ -157,23 +157,28 @@ const Detail = ({ no, refreshKey }) => {
         columns={[
           { title: "매장", dataIndex: "storeName", render: (v, t) => <><div className="crud-strong">{v}</div><div className="crud-sub">{t.storeType}{t.storeStatus && t.storeStatus !== "영업중" ? ` · ${t.storeStatus}` : ""}</div></> },
           {
+            // 전송 대기 → 수신 → 확인 → 회신 완료 중 지금 단계와 그 시각
             title: "상태",
             dataIndex: "status",
-            width: 110,
+            width: 140,
             render: (v, t) => {
               const late = m.needsReply && !t.repliedAt && t.storeStatus !== "휴점" && m.dueDate && dayjs(m.dueDate).isBefore(dayjs(), "day");
-              return <span className={`crud-badge ${late ? "red" : STATUS_TONE[v] || "gray"}`}>{late ? "기한 지남" : v}</span>;
+              const at = t.repliedAt || t.readAt || t.deliveredAt;
+              return (
+                <>
+                  <span className={`crud-badge ${late ? "red" : STATUS_TONE[v] || "gray"}`}>{late ? "기한 지남" : v}</span>
+                  {at && <div className="crud-sub">{dayjs(at).format("M/D HH:mm")}</div>}
+                </>
+              );
             },
           },
-          { title: "POS 수신", dataIndex: "deliveredAt", width: 100, render: (v) => (v ? dayjs(v).format("M/D HH:mm") : "-") },
-          { title: "확인", dataIndex: "readAt", width: 100, render: (v) => (v ? dayjs(v).format("M/D HH:mm") : "-") },
           ...(m.needsReply
             ? [{ title: "회신", dataIndex: "reply", render: (v, t) => (v ? <><div>{v}</div><div className="crud-sub">{dayjs(t.repliedAt).format("M/D HH:mm")}</div></> : "-") }]
             : []),
         ]}
       />
       <p className="ops-note" style={{ marginTop: 8 }}>
-        전송 대기: 매장 POS가 아직 받아 가지 않음 (POS가 꺼져 있거나 휴점) · 수신: POS에 도착 · 확인: 매장 직원이 열어 봄
+        전송 대기: 매장 POS가 아직 받아 가지 않음 (POS가 꺼져 있거나 휴점) · 수신: POS에 도착 · 확인: 매장 직원이 열어 봄 · 시각은 마지막 단계 기준
       </p>
     </div>
   );
@@ -211,7 +216,6 @@ const MessagesContainer = () => {
     <ConfigProvider theme={{ token: { colorPrimary: ACCENT } }}>
       <div className="dash dash-erp">
         <DashHeader
-          title="매장 공지 · 지시"
           subtitle="본사가 매장 POS로 보내는 공지 · 지시와, 업무에서 자동으로 나간 알림(발주 승인 · 반려 결과, 메뉴 · 가격 변경)을 봅니다. 매장이 확인 · 회신하면 바로 보입니다."
           extra={
             <div className="ops-toolbar">

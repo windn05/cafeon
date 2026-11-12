@@ -24,11 +24,10 @@ export const todayLabel = () => {
   });
 };
 
-// 화면 맨 위 제목 줄
-export const DashHeader = ({ title, subtitle, extra }) => (
+// 화면 맨 위 설명 줄 (메뉴명은 상단 바에 있다)
+export const DashHeader = ({ subtitle, extra }) => (
   <div className="dash-header">
     <div>
-      <h1 className="dash-title">{title}</h1>
       <p className="dash-subtitle">{subtitle}</p>
     </div>
     {extra && <div className="dash-header-extra">{extra}</div>}

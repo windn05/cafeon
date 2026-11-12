@@ -57,7 +57,6 @@ const ClientContainer = () => {
 
   return (
     <CrudPage
-      title="공급업체 관리"
       description="식자재를 납품하는 업체입니다. 납품이 빠른 업체부터 보여 주며, 납품 소요일은 주간 발주 계획에 쓰입니다."
       entity="공급업체"
       icon={<ShopOutlined />}

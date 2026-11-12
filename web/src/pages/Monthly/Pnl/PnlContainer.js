@@ -110,12 +110,15 @@ const StoreDetail = ({ storeNo, month }) => {
                 <Line label="매출 (부가세 포함)" cur={data.salesAmount} prev={p.salesAmount} net={n} />
                 <Line label="부가세 (매출 ÷ 11)" cur={-data.vat} prev={-p.vat} net={n} sub />
                 <Line label="순매출" cur={n} prev={p.netSales} net={n} kind="total" />
+                {data.franchise ? (
+                  // 가맹점: 재고 · 원가 · 비용은 점주 관리. 본사는 매출과 본사가 공급한 금액만 본다
+                  <Line label="본사 공급액 (물류센터 출고 · 직송)" cur={data.purchaseAmount} prev={p.purchaseAmount} net={n} kind="total" />
+                ) : (<>
                 <Line label="식자재 원가 (실제)" cur={-data.foodCost} prev={-p.foodCost} net={n} />
                 <Line label="판매소진 (레시피 기준)" cur={-data.consumeCost} prev={-p.consumeCost} net={n} sub />
                 <Line label="폐기" cur={-data.wasteAmount} prev={-p.wasteAmount} net={n} sub />
                 <Line label="재고 실사 로스" cur={-data.lossAmount} prev={-p.lossAmount} net={n} sub />
                 <Line label="매출총이익" cur={data.grossProfit} prev={p.grossProfit} net={n} kind="total" />
-                {!data.franchise && (<>
                 <Line label="인건비" cur={-data.laborCost} prev={-p.laborCost} net={n} />
                 <Line label={`정규직·계약직 급여 (${data.labor.fullTimeCount}명)`} cur={-data.labor.fullTime} prev={-p.labor.fullTime} net={n} sub />
                 <Line label={`파트타임 시급 (${data.labor.partTimeHours}시간)`} cur={-data.labor.partTime} prev={-p.labor.partTime} net={n} sub />
@@ -134,26 +137,19 @@ const StoreDetail = ({ storeNo, month }) => {
         <div className="home-side" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Panel title="핵심 지표">
             <div className="kpi-list">
+              {data.franchise ? (
+                <div>
+                  <span>본사 공급액</span>
+                  <strong>{man(data.purchaseAmount)}원</strong>
+                  <small>순매출 대비 {pct(n ? (data.purchaseAmount / n) * 100 : 0)} · 전월 {man(p.purchaseAmount)}원</small>
+                </div>
+              ) : (
+              <>
               <div>
                 <span>식자재 원가율</span>
                 <strong>{pct(data.foodCostRate)}</strong>
                 <small>레시피 기준 {pct(data.theoreticalRate)} · 차이 {pct(data.foodCostRate - data.theoreticalRate)}</small>
               </div>
-              {data.franchise ? (
-                <>
-                  <div>
-                    <span>로스율 (폐기 + 실사)</span>
-                    <strong>{pct(data.lossRate)}</strong>
-                    <small>순매출 대비</small>
-                  </div>
-                  <div>
-                    <span>입고(매입) 금액</span>
-                    <strong>{man(data.purchaseAmount)}원</strong>
-                    <small>본사 승인 발주 기준</small>
-                  </div>
-                </>
-              ) : (
-              <>
               <div>
                 <span>인건비율</span>
                 <strong>{pct(data.laborRate)}</strong>
@@ -188,7 +184,7 @@ const StoreDetail = ({ storeNo, month }) => {
               <BarChart data={chart} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                 <CartesianGrid vertical={false} stroke="#ededed" />
                 <XAxis dataKey="day" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} interval={2} />
-                <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} width={36} tickFormatter={(v) => `${Math.round(v / 10000)}만`} />
+                <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} width={48} tickFormatter={(v) => `${Math.round(v / 10000)}만`} />
                 <Tooltip formatter={(v) => won(v)} labelFormatter={(l) => `${month.slice(5)}월 ${l}일`} />
                 <Bar dataKey="매출" fill={ACCENT} radius={[3, 3, 0, 0]} />
               </BarChart>
@@ -197,8 +193,9 @@ const StoreDetail = ({ storeNo, month }) => {
         </div>
       </div>
       <p className="ops-note">
-        식자재 원가(실제) = 마감 때 레시피로 빠진 양 + 폐기 + 실사에서 모자란 양. 레시피 기준과의 차이가 클수록 로스·과다 사용이 많다는 뜻입니다.{" "}
-        {data.franchise ? "가맹점의 인건비 · 임차료 · 고정비는 점주의 사업 정보라 본사 손익에 넣지 않습니다." : "4대보험 사업주 부담금은 포함하지 않았습니다."}
+        {data.franchise
+          ? "가맹점의 재고 · 원가 · 인건비 · 임차료는 점주가 관리하는 사업 정보라 본사는 매출과 본사 공급액만 봅니다. 본사 공급액 = 이 달에 매장이 입고 확인한 물류센터 출고 · 직송 금액."
+          : "식자재 원가(실제) = 마감 때 레시피로 빠진 양 + 폐기 + 실사에서 모자란 양. 레시피 기준과의 차이가 클수록 로스·과다 사용이 많다는 뜻입니다. 4대보험 사업주 부담금은 포함하지 않았습니다."}
       </p>
     </div>
   );
@@ -217,7 +214,7 @@ const CompareView = ({ month, onPick }) => {
       <div className="stat-grid">
         <StatCard label="전 매장 매출" value={man(t.salesAmount)} unit="원" hint={<>전월 대비 <Delta now={t.salesAmount} before={t.prevSalesAmount} /></>} />
         <StatCard label="직영점 영업이익" value={man(dt.operatingProfit)} unit="원" tone={dt.operatingProfit < 0 ? "warn" : undefined} hint={`직영 영업이익률 ${pct(dt.operatingMargin)} · 가맹점은 제외`} />
-        <StatCard label="식자재 원가율" value={t.foodCostRate} unit="%" hint={`레시피 기준 ${pct(t.theoreticalRate)}`} />
+        <StatCard label="직영점 식자재 원가율" value={dt.foodCostRate} unit="%" hint={`레시피 기준 ${pct(dt.theoreticalRate)} · 가맹점은 제외`} />
         <StatCard label="직영점 FL 비율" value={dt.flRate} unit="%" tone={dt.flRate > 60 ? "warn" : undefined} hint={`인건비율 ${pct(dt.laborRate)}`} />
       </div>
 
@@ -252,11 +249,11 @@ const CompareView = ({ month, onPick }) => {
                     <td className="cell-num cell-right">
                       <Delta now={s.salesAmount} before={s.prevSalesAmount} />
                     </td>
-                    <td className="cell-num cell-right">{pct(s.foodCostRate)}</td>
                     {s.franchise ? (
-                      <td colSpan={4} className="cell-right cell-sub">가맹점 · 비용은 점주 관리 (로스율 {pct(s.lossRate)})</td>
+                      <td colSpan={5} className="cell-right cell-sub">가맹점 · 본사 공급 {man(s.purchaseAmount)}원 (재고 · 비용은 점주 관리)</td>
                     ) : (
                       <>
+                        <td className="cell-num cell-right">{pct(s.foodCostRate)}</td>
                         <td className="cell-num cell-right">{pct(s.laborRate)}</td>
                         <td className={`cell-num cell-right ${s.flRate > 60 ? "pnl-neg" : ""}`}>{pct(s.flRate)}</td>
                         <td className={`cell-num cell-right ${s.operatingProfit < 0 ? "pnl-neg" : ""}`}>{man(s.operatingProfit)}</td>
@@ -285,7 +282,7 @@ const CompareView = ({ month, onPick }) => {
             <BarChart data={chart} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
               <CartesianGrid vertical={false} stroke="#ededed" />
               <XAxis dataKey="name" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} width={44} tickFormatter={(v) => `${Math.round(v / 10000).toLocaleString()}만`} />
+              <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} width={60} tickFormatter={(v) => `${Math.round(v / 10000).toLocaleString()}만`} />
               <Tooltip formatter={(v) => won(v)} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Bar dataKey="매출" fill="#d6d3d1" radius={[3, 3, 0, 0]} />
@@ -308,7 +305,6 @@ const PnlContainer = () => {
     <ConfigProvider theme={{ token: { colorPrimary: ACCENT } }}>
       <div className="dash dash-erp">
         <DashHeader
-          title="월간 손익"
           subtitle="매장별 매출 · 원가 · 인건비 · 고정비로 영업이익을 계산하고, 달이 끝나면 월 마감으로 숫자를 확정합니다."
           extra={
             <div className="ops-toolbar">

@@ -17,13 +17,6 @@ import java.util.Map;
 public class SalesController {
     private final SalesService salesService;
 
-    // 하루 영수증 목록
-    @GetMapping("/receipts")
-    public List<Map<String, Object>> receipts(@RequestParam Long storeNo,
-                                              @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return salesService.receipts(storeNo, date);
-    }
-
     // 하루 판매 요약
     @GetMapping("/summary")
     public Map<String, Object> summary(@RequestParam Long storeNo,

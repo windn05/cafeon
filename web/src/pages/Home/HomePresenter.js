@@ -72,7 +72,7 @@ const HomePresenter = ({ dash, notices, weather, cityCoordinates, selectedCity, 
   return (
     <>
       <div className="dash dash-erp">
-        <DashHeader title="ERP 홈" subtitle={`${todayLabel()} · 전 매장 운영 현황 (매장 시스템에서 받은 어제 마감 기준)`} />
+        <DashHeader subtitle={`${todayLabel()} · 전 매장 운영 현황 (매장 시스템에서 받은 어제 마감 기준)`} />
 
         <div className="stat-grid">
           <StatCard
@@ -96,7 +96,7 @@ const HomePresenter = ({ dash, notices, weather, cityCoordinates, selectedCity, 
             hint={pnl ? `직영 영업이익률 ${pct(pnl.operatingMargin)} · 가맹점 비용은 점주 관리라 제외` : " "}
           />
           <StatCard
-            label="이번 달 식자재 원가율"
+            label="직영점 식자재 원가율"
             value={pnl ? pnl.foodCostRate : "-"}
             unit="%"
             tone={pnl && pnl.foodCostRate - pnl.theoreticalRate > 1 ? "warn" : undefined}
@@ -150,7 +150,13 @@ const HomePresenter = ({ dash, notices, weather, cityCoordinates, selectedCity, 
                       <span className="rank-name">
                         <b>{s.storeName}</b>
                         <small>
-                          {s.franchise ? "가맹점" : <>이익률 <span className={s.monthOperatingProfit < 0 ? "pnl-neg" : ""}>{pct(s.monthOperatingMargin)}</span></>} · 원가율 {pct(s.monthFoodCostRate)}
+                          {s.franchise ? (
+                            <>가맹점 · 본사 공급 {man(s.monthPurchase)}</>
+                          ) : (
+                            <>
+                              이익률 <span className={s.monthOperatingProfit < 0 ? "pnl-neg" : ""}>{pct(s.monthOperatingMargin)}</span> · 원가율 {pct(s.monthFoodCostRate)}
+                            </>
+                          )}
                         </small>
                       </span>
                       <span className="rank-val">{man(s.monthSales)}</span>

@@ -1,5 +1,7 @@
 package com.example.docksystem_erp.service.Dashboard;
 
+import com.example.docksystem_erp.util.BizClock;
+
 import com.example.docksystem_erp.entity.Store.Store;
 import com.example.docksystem_erp.entity.User.User;
 import com.example.docksystem_erp.repository.Monthly.MonthlyClosingRepository;
@@ -39,7 +41,7 @@ public class DashboardService {
     private final StoreMessageService messageService;
 
     public Map<String, Object> home() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = BizClock.today();
         LocalDate yesterday = today.minusDays(1);
         YearMonth month = YearMonth.from(today);
         List<Store> shops = storeRepository.findAll().stream()
@@ -94,15 +96,16 @@ public class DashboardService {
             r.put("monthOperatingMargin", st.get("operatingMargin"));
             r.put("monthFoodCostRate", st.get("foodCostRate"));
             r.put("franchise", st.get("franchise"));
+            r.put("monthPurchase", st.get("purchaseAmount")); // 가맹점: 본사(물류센터 · 직송)에서 받은 공급액
             storeRows.add(r);
-            // 영업이익은 직영점만 (가맹점 비용은 본사가 모름)
+            // 영업이익 · 식자재 원가율은 직영점만 (가맹점 재고 · 비용은 점주 관리)
             if (!Boolean.TRUE.equals(st.get("franchise"))) {
                 opSum += ((Number) st.get("operatingProfit")).longValue();
                 directNet += ((Number) st.get("netSales")).longValue();
+                netSum += ((Number) st.get("netSales")).longValue();
+                foodSum += ((Number) st.get("foodCost")).longValue();
+                theoSum += ((Number) st.get("theoreticalCost")).longValue();
             }
-            netSum += ((Number) st.get("netSales")).longValue();
-            foodSum += ((Number) st.get("foodCost")).longValue();
-            theoSum += ((Number) st.get("theoreticalCost")).longValue();
         }
         result.put("stores", storeRows);
         Map<String, Object> monthPnl = new LinkedHashMap<>();
@@ -161,14 +164,19 @@ public class DashboardService {
 
         // 입고 예정 · 지연 (매장 무관)
         for (Map<String, Object> r : jdbc.queryForList(
-                "select p.store_no, s.store_name, sum(case when p.expected_date = ? then 1 else 0 end) as today_cnt, " +
+                "select p.store_no, s.store_name, s.store_type, sum(case when p.expected_date = ? then 1 else 0 end) as today_cnt, " +
                 "sum(case when p.expected_date < ? then 1 else 0 end) as late_cnt from purchase_orders p join stores s on s.store_no = p.store_no " +
-                "where p.status = '발주완료' group by p.store_no, s.store_name", Date.valueOf(today), Date.valueOf(today))) {
+                "where p.status = '발주완료' group by p.store_no, s.store_name, s.store_type", Date.valueOf(today), Date.valueOf(today))) {
             long late = ((Number) r.get("late_cnt")).longValue();
             long due = ((Number) r.get("today_cnt")).longValue();
             Long storeNo = ((Number) r.get("store_no")).longValue();
-            if (late > 0) add(list, "danger", "구매", r.get("store_name") + " 입고 지연 " + late + "건", "도착 예정일이 지났습니다. 공급업체에 확인하세요.", "/erp/purchase/orders", storeNo);
-            if (due > 0) add(list, "info", "구매", r.get("store_name") + " 오늘 입고 예정 " + due + "건", "매장에서 입고 확인을 보내면 재고에 반영됩니다.", "/erp/purchase/orders", storeNo);
+            // 물류센터는 본사가 입고 처리 (발주 · 입고), 매장은 매장 POS가 입고 확인 (재고 관리 > 매장 배송에서 확인)
+            boolean center = "물류센터".equals(r.get("store_type"));
+            String link = center ? "/erp/purchase/orders" : "/erp/purchase/center";
+            if (late > 0) add(list, "danger", "구매", r.get("store_name") + " 입고 지연 " + late + "건",
+                    center ? "물류센터 발주 도착 예정일이 지났습니다. 공급업체에 확인하세요." : "도착 예정일이 지났습니다. 물류센터 · 공급업체에 확인하세요.", link, storeNo);
+            if (due > 0) add(list, "info", "구매", r.get("store_name") + " 오늘 입고 예정 " + due + "건",
+                    center ? "도착하면 발주 · 입고에서 입고 처리하세요." : "매장에서 입고 확인을 보내면 재고에 반영됩니다.", link, storeNo);
         }
 
         // 매장 발주 요청 처리 대기 (하루 넘게 기다린 요청이 있으면 긴급)
@@ -177,7 +185,7 @@ public class DashboardService {
         if (reqCount > 0) {
             boolean old = ((Date) req.get("first")).toLocalDate().isBefore(today);
             add(list, old ? "danger" : "warn", "구매", "매장 발주 요청 " + reqCount + "건 처리 대기",
-                    "승인하면 공급업체별 발주서가 만들어집니다." + (old ? " 어제 이전 요청이 남아 있습니다." : ""), "/erp/purchase/requests", null);
+                    "승인하면 물류센터 출고 · 직송 발주가 만들어집니다." + (old ? " 어제 이전 요청이 남아 있습니다." : ""), "/erp/purchase/requests", null);
         }
         // 지시 회신 기한 지남
         List<String> late = messageService.overdueReplies();
@@ -185,9 +193,9 @@ public class DashboardService {
             add(list, "warn", "매장 소통", "지시 회신 기한 지남 " + late.size() + "건", String.join(", ", late.subList(0, Math.min(3, late.size())))
                     + (late.size() > 3 ? " 외 " + (late.size() - 3) + "건" : ""), "/erp/messages", null);
         }
-        // 정기 발주일 (월·목): 직영점은 본사가 직접 발주
+        // 정기 발주일 (월·목): 물류센터 보충
         if (today.getDayOfWeek() == DayOfWeek.MONDAY || today.getDayOfWeek() == DayOfWeek.THURSDAY) {
-            add(list, "info", "구매", "오늘은 정기 발주일입니다", "매장 요청을 처리하고, 직영점은 발주 제안을 확인하세요.", "/erp/purchase/orders", null);
+            add(list, "info", "구매", "오늘은 물류센터 정기 보충일입니다", "재고 관리에서 모자란 품목을 골라 발주서를 만드세요.", "/erp/purchase/center", null);
         }
 
         // 지난달 월 마감 대기
@@ -226,7 +234,7 @@ public class DashboardService {
         }
 
         // 레시피 없는 판매 메뉴
-        Long noRecipe = jdbc.queryForObject("select count(*) from menus m where m.status = '판매중' and not exists " +
+        Long noRecipe = jdbc.queryForObject("select count(*) from menus m where m.status = '판매중' and coalesce(m.product_type, '매장 제조') <> '완제품' and not exists " +
                 "(select 1 from recipe_items r where r.menu_no = m.menu_no)", Long.class);
         if (noRecipe != null && noRecipe > 0) {
             add(list, "info", "기준 정보", "레시피 없는 판매 메뉴 " + noRecipe + "개", "원가가 0원으로 계산되어 손익이 부풀려집니다.", "/erp/standard/menu", null);

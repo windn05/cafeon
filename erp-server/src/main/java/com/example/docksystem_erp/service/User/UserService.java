@@ -62,7 +62,7 @@ public class UserService {
             throw new EntityNotFoundException("해당 No의 사용자를 찾을 수 없습니다."+userNo);
         }
         if (shiftRepository.existsByUser_UserNo(userNo)) {
-            throw new IllegalStateException("근무표 기록이 있는 직원은 삭제할 수 없습니다. 소속 매장을 비우면 근무표에서 빠집니다.");
+            throw new IllegalStateException("근무표 기록이 있는 직원은 삭제할 수 없습니다. 소속 사업장을 비우면 근무표에서 빠집니다.");
         }
         userRepository.deleteById(userNo);
     }
@@ -94,7 +94,12 @@ public class UserService {
 
     private Store findStore(Long storeNo) {
         if (storeNo == null) return null;
-        return storeRepository.findById(storeNo)
-                .orElseThrow(() -> new EntityNotFoundException("해당 매장을 찾을 수 없습니다: " + storeNo));
+        Store store = storeRepository.findById(storeNo)
+                .orElseThrow(() -> new EntityNotFoundException("해당 사업장을 찾을 수 없습니다: " + storeNo));
+        // 가맹점 직원은 점주가 고용 · 관리하므로 본사 직원으로 두지 않는다
+        if ("가맹점".equals(store.getStoreType())) {
+            throw new IllegalArgumentException(store.getStoreName() + "은(는) 가맹점이라 본사 직원을 둘 수 없습니다.");
+        }
+        return store;
     }
 }

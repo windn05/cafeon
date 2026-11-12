@@ -23,7 +23,6 @@ const ScheduleContainer = () => {
     <ConfigProvider theme={{ token: { colorPrimary: ACCENT } }}>
       <div className="dash dash-erp">
         <DashHeader
-          title="직영점 근무 · 인건비"
           subtitle="직영점이 매장 시스템에 등록한 근무표입니다. 본사는 근무시간 · 52시간 · 주휴수당 · 파트타임 인건비를 확인합니다. (가맹점 근무는 점주 관리)"
           extra={
             <div className="ops-toolbar">
@@ -66,7 +65,7 @@ const ScheduleContainer = () => {
             <Loading />
           ) : !data.staff.length ? (
             <div style={{ padding: 32 }}>
-              <Empty description="이 매장 소속 직원이 없습니다. 직원 관리에서 소속 매장을 지정하세요." />
+              <Empty description="이 매장 소속 직원이 없습니다. 직원 관리에서 소속 사업장을 지정하세요." />
             </div>
           ) : (
             <div className="sch-wrap">

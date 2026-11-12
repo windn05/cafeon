@@ -1,5 +1,7 @@
 package com.example.docksystem_erp.service.Sales;
 
+import com.example.docksystem_erp.util.BizClock;
+
 import com.example.docksystem_erp.dto.Ops.OpsRequests;
 import com.example.docksystem_erp.entity.Menu.Menu;
 import com.example.docksystem_erp.entity.Sales.Sale;
@@ -37,37 +39,6 @@ public class SalesService {
         return String.format("%s-%s-%04d", storeCode, date.format(RECEIPT_DATE), seq);
     }
 
-    // 하루 영수증 목록 (최근 것부터)
-    @Transactional(readOnly = true)
-    public List<Map<String, Object>> receipts(Long storeNo, LocalDate date) {
-        List<Map<String, Object>> rows = jdbc.queryForList(
-                "select receipt_no, sale_time, payment_method, channel, menu_name, quantity, unit_price, amount " +
-                "from sales where store_no = ? and sale_date = ? order by sale_time desc, receipt_no desc, sale_no",
-                storeNo, Date.valueOf(date));
-        Map<String, Map<String, Object>> byReceipt = new LinkedHashMap<>();
-        for (Map<String, Object> r : rows) {
-            Map<String, Object> receipt = byReceipt.computeIfAbsent((String) r.get("receipt_no"), no -> {
-                Map<String, Object> m = new LinkedHashMap<>();
-                m.put("receiptNo", no);
-                m.put("saleTime", r.get("sale_time").toString().substring(0, 5));
-                m.put("paymentMethod", r.get("payment_method"));
-                m.put("channel", r.get("channel"));
-                m.put("amount", 0L);
-                m.put("items", new ArrayList<Map<String, Object>>());
-                return m;
-            });
-            receipt.put("amount", (Long) receipt.get("amount") + ((Number) r.get("amount")).longValue());
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> items = (List<Map<String, Object>>) receipt.get("items");
-            items.add(Map.of(
-                    "menuName", r.get("menu_name"),
-                    "quantity", r.get("quantity"),
-                    "unitPrice", r.get("unit_price"),
-                    "amount", r.get("amount")));
-        }
-        return new ArrayList<>(byReceipt.values());
-    }
-
     // 하루 판매 요약: 합계 · 시간대별 · 메뉴별 · 결제수단별 · 채널별 · 지난주 같은 요일 비교
     @Transactional(readOnly = true)
     public Map<String, Object> summary(Long storeNo, LocalDate date) {
@@ -80,9 +51,9 @@ public class SalesService {
         result.put("closed", guard.isClosed(storeNo, date));
         result.put("totals", totals(storeNo, date, null));
         // 오늘은 영업 중이므로 지난주 같은 요일도 '지금 시각까지'만 비교한다
-        boolean today = date.equals(LocalDate.now());
-        result.put("lastWeek", totals(storeNo, date.minusDays(7), today ? LocalTime.now() : null));
-        result.put("compareUntil", today ? LocalTime.now().truncatedTo(ChronoUnit.MINUTES).toString() : null);
+        boolean today = date.equals(BizClock.today());
+        result.put("lastWeek", totals(storeNo, date.minusDays(7), today ? BizClock.time() : null));
+        result.put("compareUntil", today ? BizClock.time().truncatedTo(ChronoUnit.MINUTES).toString() : null);
         result.put("byHour", jdbc.queryForList(
                 "select hour(sale_time) as hour, sum(amount) as amount, count(distinct receipt_no) as receipts " +
                 "from sales where store_no = ? and sale_date = ? group by hour(sale_time) order by hour", storeNo, day));
@@ -127,7 +98,7 @@ public class SalesService {
         if (!"영업중".equals(store.getStatus())) {
             throw new IllegalStateException(store.getStoreName() + "은(는) 지금 " + store.getStatus() + " 상태라 판매를 입력할 수 없습니다.");
         }
-        LocalDate date = req.saleDate() == null ? LocalDate.now() : req.saleDate();
+        LocalDate date = req.saleDate() == null ? BizClock.today() : req.saleDate();
         guard.requireOpenDay(store, date);
         if (!PAYMENTS.contains(req.paymentMethod())) throw new IllegalArgumentException("결제수단을 선택해 주세요.");
         if (!CHANNELS.contains(req.channel())) throw new IllegalArgumentException("판매 채널을 선택해 주세요.");
@@ -137,7 +108,7 @@ public class SalesService {
                 "select count(distinct receipt_no) from sales where store_no = ? and sale_date = ?",
                 Integer.class, store.getStoreNo(), Date.valueOf(date));
         String no = receiptNo(store.getStoreCode(), date, (seq == null ? 0 : seq) + 1);
-        LocalTime time = date.equals(LocalDate.now()) ? LocalTime.now().truncatedTo(ChronoUnit.SECONDS) : LocalTime.of(12, 0);
+        LocalTime time = date.equals(BizClock.today()) ? BizClock.time().truncatedTo(ChronoUnit.SECONDS) : LocalTime.of(12, 0);
 
         long total = 0;
         for (OpsRequests.ReceiptItem item : req.items()) {
@@ -174,7 +145,7 @@ public class SalesService {
     public boolean importReceipt(Store store, String receiptNo, LocalDate date, LocalTime time, String payment, String channel,
                                  List<Map.Entry<Menu, Integer>> items) {
         if (receiptNo != null && !receiptNo.isBlank() && saleRepository.existsByReceiptNo(receiptNo)) return false;
-        LocalDate day = date == null ? LocalDate.now() : date;
+        LocalDate day = date == null ? BizClock.today() : date;
         guard.requireOpenDay(store, day);
         if (!PAYMENTS.contains(payment)) throw new IllegalArgumentException("결제수단은 " + PAYMENTS + " 중 하나여야 합니다: " + payment);
         if (!CHANNELS.contains(channel)) throw new IllegalArgumentException("판매 채널은 " + CHANNELS + " 중 하나여야 합니다: " + channel);
@@ -185,7 +156,7 @@ public class SalesService {
                     Integer.class, store.getStoreNo(), Date.valueOf(day));
             no = receiptNo(store.getStoreCode(), day, (seq == null ? 0 : seq) + 1);
         }
-        LocalTime t = time == null ? LocalTime.now().truncatedTo(ChronoUnit.SECONDS) : time;
+        LocalTime t = time == null ? BizClock.time().truncatedTo(ChronoUnit.SECONDS) : time;
         for (var e : items) {
             Menu menu = e.getKey();
             int qty = e.getValue() == null ? 0 : e.getValue();

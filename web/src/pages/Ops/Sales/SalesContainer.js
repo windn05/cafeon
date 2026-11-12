@@ -42,7 +42,6 @@ const SalesContainer = () => {
   const [date, setDate] = useState(todayStr());
   const params = { storeNo, date };
   const summary = useFetch(`${ERP_API}/sales/summary`, params, !!storeNo);
-  const receipts = useFetch(`${ERP_API}/sales/receipts`, params, !!storeNo);
 
   const s = summary.data;
   const t = s?.totals;
@@ -57,7 +56,6 @@ const SalesContainer = () => {
     <ConfigProvider theme={{ token: { colorPrimary: ACCENT } }}>
       <div className="dash dash-erp">
         <DashHeader
-          title="매출 현황"
           subtitle={`${dayLabel(date)} · 매장 POS에서 받은 판매 데이터 ${s?.closed ? "· 마감 수신" : date === todayStr() ? "· 영업 중 (실시간 수신)" : "· 마감 미수신"}`}
           extra={
             <div className="ops-toolbar">
@@ -125,67 +123,36 @@ const SalesContainer = () => {
           </Panel>
         </div>
 
-        <div className="ops-grid-2">
-          <Panel title="메뉴별 판매" bodyClassName="is-flush">
-            <Table
-              size="small"
-              rowKey="menuNo"
-              loading={summary.loading}
-              dataSource={s?.byMenu || []}
-              pagination={{ pageSize: 10, hideOnSinglePage: true }}
-              locale={{ emptyText: "판매 기록이 없습니다." }}
-              columns={[
-                {
-                  title: "메뉴",
-                  dataIndex: "menuName",
-                  render: (v, r) => (
-                    <>
-                      <div className="crud-strong">{v}</div>
-                      <div className="crud-sub">{r.category}</div>
-                    </>
-                  ),
-                },
-                { title: "수량", dataIndex: "quantity", align: "right", sorter: (a, b) => a.quantity - b.quantity, render: (v) => <span className="crud-num">{v}</span> },
-                { title: "매출", dataIndex: "amount", align: "right", defaultSortOrder: "descend", sorter: (a, b) => a.amount - b.amount, render: (v) => <span className="crud-num">{won(v)}</span> },
-                {
-                  title: "비중",
-                  key: "share",
-                  align: "right",
-                  render: (_, r) => <span className="crud-num crud-sub">{t?.amount ? `${((r.amount / t.amount) * 100).toFixed(1)}%` : "-"}</span>,
-                },
-              ]}
-            />
-          </Panel>
-          <Panel title={`영수증 ${receipts.data ? `${receipts.data.length}건` : ""}`} bodyClassName="is-flush">
-            <Table
-              size="small"
-              rowKey="receiptNo"
-              loading={receipts.loading}
-              dataSource={receipts.data || []}
-              pagination={{ pageSize: 10, showSizeChanger: false, hideOnSinglePage: true }}
-              locale={{ emptyText: "판매 기록이 없습니다." }}
-              expandable={{
-                expandedRowRender: (r) => (
-                  <ul className="ops-bars" style={{ padding: "4px 8px" }}>
-                    {r.items.map((it, i) => (
-                      <li key={i} style={{ gridTemplateColumns: "1fr auto auto" }}>
-                        <span>{it.menuName}</span>
-                        <span className="crud-sub">× {it.quantity}</span>
-                        <span className="val">{won(it.amount)}</span>
-                      </li>
-                    ))}
-                  </ul>
+        <Panel title="메뉴별 판매" bodyClassName="is-flush">
+          <Table
+            size="small"
+            rowKey="menuNo"
+            loading={summary.loading}
+            dataSource={s?.byMenu || []}
+            pagination={{ pageSize: 10, hideOnSinglePage: true }}
+            locale={{ emptyText: "판매 기록이 없습니다." }}
+            columns={[
+              {
+                title: "메뉴",
+                dataIndex: "menuName",
+                render: (v, r) => (
+                  <>
+                    <div className="crud-strong">{v}</div>
+                    <div className="crud-sub">{r.category}</div>
+                  </>
                 ),
-              }}
-              columns={[
-                { title: "시각", dataIndex: "saleTime", render: (v) => <span className="crud-num">{v}</span> },
-                { title: "결제", dataIndex: "paymentMethod" },
-                { title: "채널", dataIndex: "channel" },
-                { title: "금액", dataIndex: "amount", align: "right", render: (v) => <span className="crud-num">{won(v)}</span> },
-              ]}
-            />
-          </Panel>
-        </div>
+              },
+              { title: "수량", dataIndex: "quantity", align: "right", sorter: (a, b) => a.quantity - b.quantity, render: (v) => <span className="crud-num">{v}</span> },
+              { title: "매출", dataIndex: "amount", align: "right", defaultSortOrder: "descend", sorter: (a, b) => a.amount - b.amount, render: (v) => <span className="crud-num">{won(v)}</span> },
+              {
+                title: "비중",
+                key: "share",
+                align: "right",
+                render: (_, r) => <span className="crud-num crud-sub">{t?.amount ? `${((r.amount / t.amount) * 100).toFixed(1)}%` : "-"}</span>,
+              },
+            ]}
+          />
+        </Panel>
       </div>
     </ConfigProvider>
   );

@@ -1,4 +1,4 @@
-// 매장 상세: 표에서 행을 누르면 오른쪽에 열린다 (고정비 · 직원 · 본사 자산까지 한 번에)
+// 사업장 상세: 표에서 행을 누르면 오른쪽에 열린다 (고정비 · 직원 · 본사 자산까지 한 번에)
 import { useMemo } from "react";
 import { Button, Drawer, Spin } from "antd";
 import { EditOutlined, EnvironmentOutlined, PhoneOutlined, UserOutlined } from "@ant-design/icons";
@@ -64,14 +64,14 @@ const StoreDetail = ({ store, onClose, edit, DeleteButton }) => {
             <EnvironmentOutlined /> {store.address}
           </p>
           <p className="st-line">
-            <UserOutlined /> {store.managerName || "점장 미지정"}
+            <UserOutlined /> {store.managerName || (store.storeType === "물류센터" ? "센터장 미지정" : "점장 미지정")}
           </p>
           <p className="st-line">
             <PhoneOutlined /> {store.phone ? formatPhone(store.phone) : "연락처 미입력"}
           </p>
         </section>
 
-        {SHOPS.includes(store.storeType) && (
+        {store.storeType === "직영점" && (
           <section>
             <h4>월 고정비</h4>
             <div className="st-cost">
@@ -99,7 +99,7 @@ const StoreDetail = ({ store, onClose, edit, DeleteButton }) => {
           {users.loading ? (
             <Spin size="small" />
           ) : staff.length === 0 ? (
-            <p className="st-note">배정된 직원이 없습니다. [직원 · 부서 · 직급]에서 소속 매장을 지정하세요.</p>
+            <p className="st-note">배정된 직원이 없습니다. [직원 관리]에서 소속 사업장을 지정하세요.</p>
           ) : (
             <ul className="st-list">
               {staff.map((u) => (

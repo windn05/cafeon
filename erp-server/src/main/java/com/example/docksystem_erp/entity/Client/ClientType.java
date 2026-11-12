@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 public enum ClientType {
     COFFEE("원두·커피"),
     DAIRY("유제품"),
-    BAKERY("베이커리 원료"),
+    BAKERY("베이커리·디저트"),
     PRODUCE("농산물·과일"),
     SAUCE("시럽·소스"),
     PACKAGING("포장재·소모품"),

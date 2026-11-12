@@ -192,7 +192,7 @@ const LoginPresenter = ({
                     loading={loading}
                     className="bp-submit"
                   >
-                    본사 ERP로 로그인
+                    로그인
                   </Button>
                 </Form>
               </>

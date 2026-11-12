@@ -86,8 +86,8 @@ const UserContainer = ({ users, departments, roles, stores, title = "직원", de
           type: "select",
           half: true,
           placeholder: "본사 (비워 두기)",
-          help: "매장 · 센트럴키친 직원은 소속만 고르면 됩니다. 비워 두면 본사 직원이 되어 부서를 고릅니다.",
-          options: stores.map((s) => ({ value: s.storeNo, label: `${s.storeName} (${s.storeType})` })),
+          help: "직영점 · 물류센터 직원은 소속 사업장만 고르면 됩니다. 비워 두면 본사 직원이 되어 부서를 고릅니다.",
+          options: stores.filter((s) => s.storeType !== "가맹점").map((s) => ({ value: s.storeNo, label: `${s.storeName} (${s.storeType})` })),
           initialValue: initial.storeNo,
         },
         {
