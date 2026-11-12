@@ -84,6 +84,11 @@ public class MaterialService {
         material.setPackQty(dto.getPackQty());
         material.setStorageType(dto.getStorageType());
         material.setShelfLifeDays(dto.getShelfLifeDays());
+        String supply = dto.getSupplyType() == null || dto.getSupplyType().isBlank() ? Material.SUPPLY_CENTER : dto.getSupplyType();
+        if (!Material.SUPPLY_CENTER.equals(supply) && !Material.SUPPLY_DIRECT.equals(supply)) {
+            throw new IllegalArgumentException("공급 방식은 물류센터 또는 직송이어야 합니다.");
+        }
+        material.setSupplyType(supply);
         material.setClient(dto.getClientNo() == null ? null : clientRepository.findById(dto.getClientNo())
                 .orElseThrow(() -> new EntityNotFoundException("해당 공급업체를 찾을 수 없습니다: " + dto.getClientNo())));
     }

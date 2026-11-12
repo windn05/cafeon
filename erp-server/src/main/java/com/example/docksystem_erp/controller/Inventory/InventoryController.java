@@ -51,6 +51,6 @@ public class InventoryController {
 
     @PostMapping("/stocktakes")
     public Map<String, Object> createStocktake(@RequestBody OpsRequests.StocktakeReq req) {
-        return inventoryService.createStocktake(req);
+        return inventoryService.createCenterStocktake(req);
     }
 }

@@ -14,5 +14,6 @@ public class MaterialCreateRequestDto {
     private Double packQty;
     private String storageType;
     private Integer shelfLifeDays;
+    private String supplyType;
     private Long clientNo;
 }

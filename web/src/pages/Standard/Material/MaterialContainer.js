@@ -3,7 +3,7 @@ import { ShoppingOutlined } from "@ant-design/icons";
 import CrudPage, { useList } from "../../../components/CrudPage/CrudPage";
 import { ERPapi } from "../../../components/api/api";
 import { ERP_API } from "../../../config";
-import { MATERIAL_TYPES, STORAGE_TYPES, USAGE_UNITS, formatUnitCost } from "../cafeOptions";
+import { MATERIAL_TYPES, STORAGE_TYPES, SUPPLY_TYPES, USAGE_UNITS, formatUnitCost } from "../cafeOptions";
 import { byNum, byText, won } from "../../../components/CrudPage/cells";
 
 const URL = `${ERP_API}/materials`;
@@ -16,6 +16,13 @@ const COLUMNS = [
   { title: "식자재명", dataIndex: "materialName", sorter: byText((r) => r.materialName), render: (v) => <span className="crud-strong">{v}</span> },
   { title: "분류", dataIndex: "materialType", filter: true, filterOptions: MATERIAL_TYPES },
   { title: "보관", dataIndex: "storageType", filter: true, filterOptions: STORAGE_TYPES },
+  {
+    title: "공급",
+    dataIndex: "supplyType",
+    filter: true,
+    filterOptions: SUPPLY_TYPES,
+    render: (v) => <span className={`crud-tag ${v === "직송" ? "is-warn" : "is-info"}`}>{v}</span>,
+  },
   {
     title: "공급업체",
     dataIndex: "clientName",
@@ -78,8 +85,7 @@ const MaterialContainer = () => {
 
   return (
     <CrudPage
-      title="식자재 관리"
-      description="원두·우유·시럽·포장재 등 매장과 센트럴키친에서 쓰는 식자재입니다. 구매 단가로 계산한 사용 단위 원가가 레시피 원가의 기준이 됩니다."
+      description="원두·우유·시럽·포장재 등 매장에서 쓰는 식자재입니다. 구매 단가로 계산한 사용 단위 원가가 레시피 원가의 기준이 됩니다."
       entity="식자재"
       icon={<ShoppingOutlined />}
       rowKey="materialNo"
@@ -103,6 +109,17 @@ const MaterialContainer = () => {
         { name: "materialName", label: "식자재명", section: "basic", required: true, half: true, placeholder: "예: 에스프레소 블렌드 원두", maxLength: 50 },
         { name: "materialType", label: "분류", section: "basic", type: "select", options: MATERIAL_TYPES, required: true, half: true },
         { name: "storageType", label: "보관 방법", section: "basic", type: "select", options: STORAGE_TYPES, required: true, half: true, initialValue: "상온" },
+        {
+          name: "supplyType",
+          label: "공급 방식",
+          section: "basic",
+          type: "select",
+          options: SUPPLY_TYPES,
+          required: true,
+          half: true,
+          initialValue: "물류센터",
+          help: "물류센터: 본사 재고에서 출고 · 직송: 공급업체가 매장으로 바로 배송 (우유처럼 유통기한이 짧은 품목)",
+        },
         { name: "shelfLifeDays", label: "유통기한 (개봉 전)", section: "basic", type: "number", unit: "일", half: true, min: 1 },
         {
           name: "clientNo",

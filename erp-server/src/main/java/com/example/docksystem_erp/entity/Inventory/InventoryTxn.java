@@ -25,6 +25,8 @@ public class InventoryTxn {
     public static final String CONSUME = "판매소진";
     public static final String WASTE = "폐기";
     public static final String ADJUST = "실사조정";
+    // 물류센터에서 매장으로 내보낸 수량 (물류센터 재고에서 빠진다)
+    public static final String SHIP = "출고";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

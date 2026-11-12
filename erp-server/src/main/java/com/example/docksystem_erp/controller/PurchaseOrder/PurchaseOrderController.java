@@ -25,6 +25,13 @@ public class PurchaseOrderController {
         return poService.list(storeNo, from, to, status);
     }
 
+    // 매장으로 가는 배송 (물류센터 출고 · 공급업체 직송)
+    @GetMapping("/deliveries")
+    public List<Map<String, Object>> deliveries(@RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                                                @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return poService.deliveries(from, to);
+    }
+
     // 입고 대기 중인 발주
     @GetMapping("/open")
     public List<Map<String, Object>> open(@RequestParam Long storeNo) {

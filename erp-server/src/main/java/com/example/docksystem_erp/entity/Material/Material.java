@@ -39,10 +39,19 @@ public class Material {
     private String storageType;
     // 개봉 전 유통기한 (일)
     private Integer shelfLifeDays;
+    // 공급 방식: 물류센터(본사 재고에서 출고) · 직송(공급업체가 매장으로 바로 배송)
+    public static final String SUPPLY_CENTER = "물류센터";
+    public static final String SUPPLY_DIRECT = "직송";
+    @Column(nullable = false, length = 10)
+    private String supplyType = SUPPLY_CENTER;
     // 주 공급업체
     @ManyToOne
     @JoinColumn(name = "client_no")
     private Client client;
+
+    public boolean isDirect() {
+        return SUPPLY_DIRECT.equals(supplyType);
+    }
 
     // 사용 단위 1개당 원가 (원)
     public double getUnitCost() {

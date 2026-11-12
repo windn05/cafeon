@@ -156,6 +156,93 @@
   color: var(--muted);
 }
 
+.pos-menu.is-picked {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* POS 레시피 */
+.pos-recipe {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.pos-recipe-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.pos-recipe-head b {
+  font-size: 20px;
+  color: var(--ink);
+}
+
+.pos-recipe-head > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.pos-recipe h4 {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.pos-recipe-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pos-recipe-lines li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px dashed var(--line);
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.pos-recipe-lines li b {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pos-recipe-lines.is-sub li {
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.pos-recipe-lines.is-sub li b {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.pos-recipe-note {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.pos-recipe-foot {
+  margin: 4px 0 0;
+}
+
 .pos-cart {
   display: flex;
   flex-direction: column;
@@ -275,19 +362,61 @@
   border-radius: 10px;
 }
 
-/* 재고 */
-.stock-qty {
-  font-variant-numeric: tabular-nums;
+.closing-done-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
-.stock-qty small {
-  display: block;
-  font-size: 13px;
+/* 재고 */
+.count-row-diff.is-minus { color: var(--neg); }
+.count-row-diff.is-plus { color: var(--info); }
+
+/* 현재고 표 */
+.dash .ant-table-tbody > tr.ant-table-row-selected > td {
+  background: var(--accent-soft) !important;
+}
+
+.stock-name {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+
+.stock-name b {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.stock-name small {
+  font-size: 12px;
   color: var(--muted);
 }
 
-.count-row-diff.is-minus { color: var(--neg); }
-.count-row-diff.is-plus { color: var(--info); }
+.stock-gap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.35;
+  color: var(--ink-2);
+}
+
+.stock-gap.is-neg {
+  color: var(--neg);
+}
+
+.stock-gap small {
+  font-size: 12px;
+}
+
+.stock-days {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.stock-days.is-neg { color: var(--neg); }
+.stock-days.is-warn { color: var(--warn); }
 
 @media (max-width: 900px) {
   .pos,
@@ -361,4 +490,24 @@
   background: #fff8ec;
   border: 1px solid #f5dfb8;
   border-radius: 10px;
+}
+
+/* 물류센터 수량 조정 창 */
+.adjust-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 8px;
+}
+
+.adjust-row {
+  display: grid;
+  grid-template-columns: 80px auto 1fr;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.adjust-row > span:first-child {
+  color: var(--muted);
 }

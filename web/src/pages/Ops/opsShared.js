@@ -24,9 +24,9 @@ export const changeRate = (now, before) => {
 };
 
 const STORAGE_KEY = "ops.storeNo";
-const readSaved = () => {
+const readSaved = (key) => {
   try {
-    return Number(sessionStorage.getItem(STORAGE_KEY)) || null;
+    return Number(sessionStorage.getItem(key)) || null;
   } catch {
     return null;
   }
@@ -35,17 +35,18 @@ const readSaved = () => {
 // 매장 목록 + 선택한 매장 (화면을 옮겨도 같은 매장을 유지)
 // shopsOnly: 판매 매장(직영·가맹)만
 // types: 매장 유형으로 더 좁힘 (예: ["직영점"])
-export const useStoreChoice = ({ shopsOnly = false, types = null } = {}) => {
+// storageKey: 다른 화면과 따로 기억할 때
+export const useStoreChoice = ({ shopsOnly = false, types = null, storageKey = STORAGE_KEY } = {}) => {
   const typeKey = types ? types.join(",") : "";
   const [stores, setStores] = useState([]);
-  const [storeNo, setStoreNoState] = useState(readSaved);
+  const [storeNo, setStoreNoState] = useState(() => readSaved(storageKey));
   // 매장 목록을 받기 전에는 저장해 둔 번호(지워졌을 수 있음)로 조회하지 않는다
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     ERPapi.get(`${ERP_API}/stores`)
       .then((res) => {
-        // 판매 매장을 먼저, 그다음 물류센터·센트럴키친 (각각 코드 순)
+        // 판매 매장을 먼저, 그다음 물류센터 (각각 코드 순)
         const isShop = (s) => SHOP_TYPES.includes(s.storeType);
         const list = res.data
           .filter((s) => !shopsOnly || isShop(s))
@@ -57,7 +58,7 @@ export const useStoreChoice = ({ shopsOnly = false, types = null } = {}) => {
         setStoreNoState((cur) => {
           const next = list.some((s) => s.storeNo === cur) ? cur : list[0]?.storeNo ?? null;
           try {
-            if (next) sessionStorage.setItem(STORAGE_KEY, String(next));
+            if (next) sessionStorage.setItem(storageKey, String(next));
           } catch {
             /* 저장 못 해도 동작에는 문제없음 */
           }
@@ -68,12 +69,12 @@ export const useStoreChoice = ({ shopsOnly = false, types = null } = {}) => {
         setLoaded(true);
         message.error(errorText(err, "매장 목록을 불러오지 못했습니다."));
       });
-  }, [shopsOnly, typeKey]);
+  }, [shopsOnly, typeKey, storageKey]);
 
   const setStoreNo = (no) => {
     setStoreNoState(no);
     try {
-      sessionStorage.setItem(STORAGE_KEY, String(no));
+      sessionStorage.setItem(storageKey, String(no));
     } catch {
       /* 저장 못 해도 동작에는 문제없음 */
     }

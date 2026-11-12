@@ -14,6 +14,7 @@ public class MaterialResponseDto {
     private String materialUnit;
     private Double packQty;
     private String storageType;
+    private String supplyType;
     private Integer shelfLifeDays;
     private Long clientNo;
     private String clientName;
@@ -33,6 +34,7 @@ public class MaterialResponseDto {
         dto.setMaterialUnit(material.getMaterialUnit());
         dto.setPackQty(material.getPackQty());
         dto.setStorageType(material.getStorageType());
+        dto.setSupplyType(material.getSupplyType());
         dto.setShelfLifeDays(material.getShelfLifeDays());
         if (material.getClient() != null) {
             dto.setClientNo(material.getClient().getClientNo());
