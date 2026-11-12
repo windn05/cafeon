@@ -79,10 +79,31 @@ const MessagesTab = ({ api, messages, onRead, onSaved }) => {
 
   const overdue = (m) => m.needsReply && !m.repliedAt && m.dueDate && dayjs(m.dueDate).isBefore(dayjs(), "day");
 
+  // 모두 읽음: 안 읽은 메시지를 한꺼번에 확인 (회신이 필요한 지시는 회신 대기로 남는다)
+  const unread = messages.filter((m) => !m.readAt).length;
+  const [readingAll, setReadingAll] = useState(false);
+  const readAll = async () => {
+    setReadingAll(true);
+    try {
+      const { data } = await api.post("/messages/read-all");
+      message.success(`${data.read}건을 읽음으로 바꿨습니다.${data.waitingReply ? ` 회신이 필요한 지시 ${data.waitingReply}건은 회신해 주세요.` : ""}`);
+      onSaved();
+    } catch (err) {
+      message.error(errText(err, "읽음으로 바꾸지 못했습니다."));
+    } finally {
+      setReadingAll(false);
+    }
+  };
+
   return (
     <div className="pos-inbox">
       <div className="pos-inbox-list">
-        <Segmented value={filter} onChange={setFilter} options={FILTERS} />
+        <div className="pos-inbox-tools">
+          <Segmented value={filter} onChange={setFilter} options={FILTERS} />
+          <Button size="small" icon={<CheckCircleFilled />} disabled={!unread} loading={readingAll} onClick={readAll}>
+            모두 읽음{unread ? ` ${unread}` : ""}
+          </Button>
+        </div>
         {list.length === 0 ? (
           <Empty description="메시지가 없습니다." style={{ marginTop: 30 }} />
         ) : (

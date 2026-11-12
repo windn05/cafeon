@@ -1,5 +1,7 @@
 package com.example.cafeon_pos.service;
 
+import com.example.cafeon_pos.config.BizClock;
+
 import com.example.cafeon_pos.config.PosTokens;
 import com.example.cafeon_pos.entity.*;
 import com.example.cafeon_pos.repository.*;
@@ -26,6 +28,7 @@ import java.util.*;
 public class PosService {
     public static final List<String> PAYMENTS = List.of("카드", "간편결제", "현금");
     public static final List<String> CHANNELS = List.of("매장", "포장", "배달");
+    public static final String CANCEL_CLOSE = "마감취소";
     private static final DateTimeFormatter NO_DATE = DateTimeFormatter.ofPattern("yyMMdd");
 
     private final PosStoreRepository storeRepository;
@@ -42,6 +45,8 @@ public class PosService {
 
     @Value("${pos.cash-float:200000}")
     private long cashFloat;
+    @Value("${pos.dev.enabled:false}")
+    private boolean devEnabled;
 
     // 이 POS에 등록 정보가 없음 (DB 초기화 등) → 화면이 기기 등록으로 돌아가게 401
     public static class NotRegistered extends RuntimeException {
@@ -50,7 +55,8 @@ public class PosService {
 
     // ----- 요청 형식 -----
     public record ItemReq(String menuCode, Integer quantity) {}
-    public record SaleReq(String paymentMethod, String channel, List<ItemReq> items) {}
+    // at: 결제 시각 (개발 · 시험용 매장 영업 시뮬레이터만, pos.dev.enabled일 때). 보통은 비워 두고 지금 시각으로 저장
+    public record SaleReq(String paymentMethod, String channel, List<ItemReq> items, LocalDateTime at) {}
     public record CloseReq(Long cashCounted, String note) {}
     public record WasteReq(String materialCode, Double quantity, String reason, String note) {}
     public record CountReq(String materialCode, Double countedQty) {}
@@ -75,9 +81,9 @@ public class PosService {
         store.setIntegrationKey(k);
         store.setKeyRejected(false);
         store.setOnline(true);
-        store.setLastContactAt(LocalDateTime.now());
+        store.setLastContactAt(BizClock.now());
         store.setLastError(null);
-        if (isNew) store.setRegisteredAt(LocalDateTime.now());
+        if (isNew) store.setRegisteredAt(BizClock.now());
         storeRepository.save(store);
         sync.syncNow(code); // 메뉴 · 메시지 · 재고 받기 + 쌓인 것 보내기
         Map<String, Object> r = new LinkedHashMap<>();
@@ -102,6 +108,8 @@ public class PosService {
 
     @Transactional(readOnly = true)
     public Map<String, Object> master(String storeCode) {
+        Map<String, PosMaterial> byCode = new HashMap<>();
+        materialRepository.findByStoreCodeOrderByMaterialCodeAsc(storeCode).forEach(mt -> byCode.put(mt.getMaterialCode(), mt));
         List<Map<String, Object>> menus = menuRepository.findByStoreCodeOrderBySortOrderAsc(storeCode).stream().map(m -> {
             Map<String, Object> x = new LinkedHashMap<>();
             x.put("menuCode", m.getMenuCode());
@@ -109,6 +117,21 @@ public class PosService {
             x.put("category", m.getCategory());
             x.put("price", m.getPrice());
             x.put("status", m.getStatus());
+            x.put("productType", m.getProductType() == null ? "매장 제조" : m.getProductType());
+            // 레시피: 본사에서 받은 식자재 코드 · 사용량에 식자재 이름 · 분류를 붙인다 (매장 레시피 보기용)
+            List<Map<String, Object>> recipe = new ArrayList<>();
+            JsonNode lines = parse(m.getRecipeJson());
+            if (lines != null) lines.forEach(l -> {
+                PosMaterial mt = byCode.get(l.path("materialCode").asText());
+                Map<String, Object> r = new LinkedHashMap<>();
+                r.put("materialCode", l.path("materialCode").asText());
+                r.put("materialName", mt == null ? l.path("materialCode").asText() : mt.getMaterialName());
+                r.put("materialType", mt == null ? null : mt.getMaterialType());
+                r.put("quantity", l.path("quantity").asDouble());
+                r.put("unit", l.path("unit").asText());
+                recipe.add(r);
+            });
+            x.put("recipe", recipe);
             return x;
         }).toList();
         List<Map<String, Object>> materials = materialRepository.findByStoreCodeOrderByMaterialCodeAsc(storeCode).stream().map(m -> {
@@ -131,7 +154,7 @@ public class PosService {
     @Transactional(readOnly = true)
     public Map<String, Object> today(String storeCode) {
         PosStore s = store(storeCode);
-        LocalDate today = LocalDate.now();
+        LocalDate today = BizClock.today();
         List<PosReceipt> receipts = receiptRepository.findByStoreCodeAndSaleDateOrderByIdDesc(storeCode, today);
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("date", today);
@@ -169,9 +192,12 @@ public class PosService {
     // ----- 판매 -----
 
     @Transactional
-    public synchronized Map<String, Object> sale(String storeCode, SaleReq req) {
+    // 같은 매장 판매는 컨트롤러가 매장별로 줄 세운다 (영수증 번호가 겹치지 않게)
+    public Map<String, Object> sale(String storeCode, SaleReq req) {
         store(storeCode);
-        LocalDate today = LocalDate.now();
+        if (req.at() != null && !devEnabled) throw new IllegalArgumentException("결제 시각은 지정할 수 없습니다.");
+        LocalDateTime when = req.at() != null ? req.at() : BizClock.now();
+        LocalDate today = when.toLocalDate();
         requireOpen(storeCode, today);
         if (!PAYMENTS.contains(req.paymentMethod())) throw new IllegalArgumentException("결제 수단을 골라 주세요.");
         if (!CHANNELS.contains(req.channel())) throw new IllegalArgumentException("판매 채널을 골라 주세요.");
@@ -180,7 +206,7 @@ public class PosService {
         PosReceipt r = new PosReceipt();
         r.setStoreCode(storeCode);
         r.setSaleDate(today);
-        r.setSaleTime(LocalTime.now().withNano(0));
+        r.setSaleTime(when.toLocalTime().withNano(0));
         r.setPaymentMethod(req.paymentMethod());
         r.setChannel(req.channel());
         r.setReceiptNo(String.format("%s-%s-%04d", storeCode, today.format(NO_DATE), receiptRepository.countByStoreCodeAndSaleDate(storeCode, today) + 1));
@@ -230,7 +256,7 @@ public class PosService {
     @Transactional
     public Map<String, Object> close(String storeCode, CloseReq req) {
         store(storeCode);
-        LocalDate today = LocalDate.now();
+        LocalDate today = BizClock.today();
         requireOpen(storeCode, today);
         if (req.cashCounted() == null || req.cashCounted() < 0) throw new IllegalArgumentException("금고에서 센 현금을 넣어 주세요.");
         List<PosReceipt> receipts = receiptRepository.findByStoreCodeAndSaleDateOrderByIdDesc(storeCode, today);
@@ -254,7 +280,7 @@ public class PosService {
         c.setCashCounted(req.cashCounted());
         c.setCashDiff(diff);
         c.setNote(note);
-        c.setClosedAt(LocalDateTime.now());
+        c.setClosedAt(BizClock.now());
         c.setSendStatus(PosOutbox.WAITING);
         closingRepository.save(c);
 
@@ -267,15 +293,38 @@ public class PosService {
         return closingMap(c);
     }
 
+    // 마감 취소: 오늘 마감만. 판매 · 폐기를 다시 받고, 본사에는 '마감취소'를 보내 본사 마감 · 판매소진을 되돌린다.
+    // 전송은 순서대로 가므로 본사와 끊겨 있어도 마감 → 취소 → 추가 판매 → 재마감 순서가 지켜진다.
+    @Transactional
+    public Map<String, Object> cancelClose(String storeCode, String reason) {
+        store(storeCode);
+        LocalDate today = BizClock.today();
+        PosClosing c = closingRepository.findByStoreCodeAndClosingDate(storeCode, today)
+                .orElseThrow(() -> new IllegalStateException("오늘 마감한 기록이 없습니다."));
+        String why = blank(reason);
+        if (why == null) throw new IllegalArgumentException("마감을 취소하는 사유를 골라 주세요.");
+        closingRepository.delete(c);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("date", today);
+        body.put("reason", why.trim());
+        PosOutbox o = sync.queue(storeCode, CANCEL_CLOSE, today.toString(), today.format(DateTimeFormatter.ofPattern("M/d")) + " 마감 취소 · " + why.trim(),
+                "/closings/cancel", body);
+        return outboxMap(o);
+    }
+
     // ----- 폐기 · 실사 · 발주 요청 · 입고 확인 -----
 
     @Transactional
     public Map<String, Object> waste(String storeCode, WasteReq req) {
+        // 폐기 금액은 그날 마감에 들어가므로, 마감한 뒤에는 받지 않는다 (본사도 마감한 날의 폐기는 거절)
+        if (closingRepository.findByStoreCodeAndClosingDate(storeCode, BizClock.today()).isPresent()) {
+            throw new IllegalStateException("오늘은 이미 마감했습니다. 폐기는 마감 전에 입력하거나 내일 입력해 주세요.");
+        }
         PosMaterial m = material(storeCode, req.materialCode());
         if (req.quantity() == null || req.quantity() <= 0) throw new IllegalArgumentException("폐기 수량은 0보다 커야 합니다.");
         if (req.reason() == null || req.reason().isBlank()) throw new IllegalArgumentException("폐기 사유를 골라 주세요.");
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("date", LocalDate.now());
+        body.put("date", BizClock.today());
         body.put("materialCode", m.getMaterialCode());
         body.put("quantity", req.quantity());
         body.put("reason", req.reason());
@@ -297,10 +346,10 @@ public class PosService {
         }
         if (lines.isEmpty()) throw new IllegalArgumentException("센 수량을 1개 품목 이상 넣어 주세요.");
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("date", LocalDate.now());
+        body.put("date", BizClock.today());
         body.put("note", blank(req.note()) == null ? "매장 실사" : req.note().trim());
         body.put("lines", lines);
-        PosOutbox o = sync.queue(storeCode, "실사", LocalDate.now().toString(), "재고 실사 " + lines.size() + "개 품목", "/stocktakes", body);
+        PosOutbox o = sync.queue(storeCode, "실사", BizClock.today().toString(), "재고 실사 " + lines.size() + "개 품목", "/stocktakes", body);
         return outboxMap(o);
     }
 
@@ -317,7 +366,7 @@ public class PosService {
             lines.add(Map.of("materialCode", p.materialCode(), "packs", p.packs()));
         }
         if (lines.isEmpty()) throw new IllegalArgumentException("요청할 식자재를 1개 이상 넣어 주세요.");
-        if (req.neededDate() != null && req.neededDate().isBefore(LocalDate.now())) throw new IllegalArgumentException("필요한 날짜는 오늘 이후로 골라 주세요.");
+        if (req.neededDate() != null && req.neededDate().isBefore(BizClock.today())) throw new IllegalArgumentException("필요한 날짜는 오늘 이후로 골라 주세요.");
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("neededDate", req.neededDate());
         body.put("note", blank(req.note()));
@@ -342,7 +391,7 @@ public class PosService {
         }
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("poNumber", req.poNumber());
-        body.put("receivedDate", LocalDate.now());
+        body.put("receivedDate", BizClock.today());
         body.put("note", blank(req.note()));
         body.put("lines", lines);
         PosOutbox o = sync.queue(storeCode, "입고", req.poNumber(), req.poNumber() + " 입고 확인 · " + total + "개", "/deliveries", body);
@@ -360,11 +409,26 @@ public class PosService {
     public Map<String, Object> read(String storeCode, Long id) {
         PosMessage m = message(storeCode, id);
         if (m.getReadAt() == null) {
-            m.setReadAt(LocalDateTime.now());
+            m.setReadAt(BizClock.now());
             messageRepository.save(m);
             sync.queue(storeCode, "공지확인", String.valueOf(m.getHqId()), "확인 · " + m.getTitle(), "/inbox/" + m.getHqId() + "/read", Map.of());
         }
         return messageMap(m);
+    }
+
+    // 모두 읽음: 안 읽은 본사 메시지를 한꺼번에 확인 처리하고, 본사에도 하나씩 확인을 보낸다 (회신이 필요한 지시는 회신 대기로 남는다)
+    @Transactional
+    public Map<String, Object> readAll(String storeCode) {
+        store(storeCode);
+        List<PosMessage> unread = messageRepository.findByStoreCodeAndReadAtIsNullOrderByHqIdAsc(storeCode);
+        LocalDateTime now = BizClock.now();
+        for (PosMessage m : unread) {
+            m.setReadAt(now);
+            messageRepository.save(m);
+            sync.queue(storeCode, "공지확인", String.valueOf(m.getHqId()), "확인 · " + m.getTitle(), "/inbox/" + m.getHqId() + "/read", Map.of());
+        }
+        long waitingReply = unread.stream().filter(m -> m.isNeedsReply() && m.getRepliedAt() == null).count();
+        return Map.of("read", unread.size(), "waitingReply", waitingReply);
     }
 
     @Transactional
@@ -373,7 +437,7 @@ public class PosService {
         if (!m.isNeedsReply()) throw new IllegalArgumentException("회신이 필요 없는 메시지입니다.");
         if (m.getRepliedAt() != null) throw new IllegalStateException("이미 회신했습니다.");
         if (reply == null || reply.isBlank()) throw new IllegalArgumentException("회신 내용을 적어 주세요.");
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = BizClock.now();
         if (m.getReadAt() == null) m.setReadAt(now);
         m.setReply(SyncService.cut(reply.trim(), 500));
         m.setRepliedAt(now);
@@ -491,6 +555,7 @@ public class PosService {
         m.put("note", c.getNote());
         m.put("closedAt", c.getClosedAt());
         m.put("sendStatus", c.getSendStatus());
+        m.put("reopenCount", outboxRepository.countByStoreCodeAndDataTypeAndRefNo(c.getStoreCode(), CANCEL_CLOSE, c.getClosingDate().toString()));
         return m;
     }
 

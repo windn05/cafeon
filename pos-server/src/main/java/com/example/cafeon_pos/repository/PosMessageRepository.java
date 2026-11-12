@@ -8,4 +8,5 @@ public interface PosMessageRepository extends JpaRepository<PosMessage, Long> {
     List<PosMessage> findTop200ByStoreCodeOrderByHqIdDesc(String storeCode);
     boolean existsByStoreCodeAndHqId(String storeCode, Long hqId);
     long countByStoreCodeAndReadAtIsNull(String storeCode);
+    List<PosMessage> findByStoreCodeAndReadAtIsNullOrderByHqIdAsc(String storeCode);
 }

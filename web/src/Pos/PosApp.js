@@ -7,7 +7,7 @@ import { BellOutlined, LogoutOutlined, SyncOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import Brand from "../components/Brand/Brand";
 import { POS_API } from "../config";
-import { ClosingTab, CountTab, DeliveryTab, OrderTab, OutboxTab, ReceiptsTab, SaleTab, WasteTab } from "./PosTabs";
+import { ClosingTab, CountTab, DeliveryTab, OrderTab, OutboxTab, ReceiptsTab, RecipeTab, SaleTab, WasteTab } from "./PosTabs";
 import MessagesTab from "./PosMessages";
 import { errText, won } from "./posShared";
 import { erpTheme } from "../theme/erpTheme";
@@ -42,6 +42,31 @@ const store = {
     } catch {
       /* 저장 못 해도 이번 화면에서는 쓴다 */
     }
+  },
+};
+
+// 기기 토큰은 탭마다 따로 기억한다 (탭마다 다른 매장 POS를 열어 볼 수 있게). 새 탭은 마지막으로 쓴 매장으로 시작
+const tokenStore = {
+  get: () => {
+    try {
+      const mine = sessionStorage.getItem(TOKEN);
+      if (mine) return mine;
+      // 처음 여는 탭: 마지막 매장으로 시작하고, 이 탭에 고정한다 (다른 탭이 매장을 바꿔도 안 따라가게)
+      const last = store.get(TOKEN);
+      if (last) sessionStorage.setItem(TOKEN, last);
+      return last;
+    } catch {
+      return store.get(TOKEN);
+    }
+  },
+  set: (v) => {
+    try {
+      if (v) sessionStorage.setItem(TOKEN, v);
+      else sessionStorage.removeItem(TOKEN);
+    } catch {
+      /* 탭 저장소를 못 쓰면 공용 저장소만 쓴다 */
+    }
+    store.set(TOKEN, v);
   },
 };
 
@@ -86,7 +111,7 @@ const RegisterScreen = ({ onRegistered, notice }) => {
       {notice && <Alert type="warning" showIcon message={notice} style={{ marginBottom: 12 }} />}
       {error && <Alert type="error" showIcon message={error} style={{ marginBottom: 12 }} />}
       <Input.Search placeholder="sk_…" enterButton="등록" size="large" value={key} loading={loading} onChange={(e) => setKey(e.target.value)} onSearch={register} />
-      <p className="pos-hint">연동 키는 본사 ERP의 [데이터 수집] 화면에서 매장별로 발급합니다.</p>
+      <p className="pos-hint">연동 키는 본사 ERP의 [데이터 수집] 화면에서 매장별로 발급합니다. 같은 화면의 [매장 POS 열기]로 고른 매장의 POS를 바로 열 수 있습니다.</p>
     </div>
   );
 };
@@ -114,7 +139,8 @@ const SyncBadge = ({ sync, syncing, onSync }) => {
 };
 
 const PosApp = () => {
-  const [token, setToken] = useState(() => store.get(TOKEN));
+  // 본사 ERP에서 [매장 POS 열기]로 다른 매장 키를 넘겨줬으면, 기존 등록 대신 그 매장으로 새로 등록한다
+  const [token, setToken] = useState(() => (store.get(HANDOFF) ? "" : tokenStore.get()));
   const [notice, setNotice] = useState("");
   const [me, setMe] = useState(null);
   const [master, setMaster] = useState(null);
@@ -132,7 +158,7 @@ const PosApp = () => {
       (r) => r,
       (err) => {
         if (err?.response?.status === 401) {
-          store.set(TOKEN, "");
+          tokenStore.set("");
           setToken("");
           setNotice("기기 등록이 풀렸습니다. 연동 키로 다시 등록해 주세요.");
         }
@@ -202,7 +228,7 @@ const PosApp = () => {
   };
 
   const onRegistered = (t) => {
-    store.set(TOKEN, t);
+    tokenStore.set(t);
     setNotice("");
     setMaster(null);
     masterAt.current = null;
@@ -211,7 +237,7 @@ const PosApp = () => {
   };
 
   const unregister = () => {
-    store.set(TOKEN, "");
+    tokenStore.set("");
     setToken("");
     setMe(null);
     setToday(null);
@@ -306,8 +332,9 @@ const PosApp = () => {
                 items={[
                   { key: "sale", label: "판매", children: <SaleTab api={api} master={master} today={today} onSaved={refresh} /> },
                   { key: "receipts", label: `영수증 ${today.sales.receipts || ""}`, children: <ReceiptsTab today={today} /> },
+                  { key: "recipe", label: "레시피", children: <RecipeTab master={master} /> },
                   { key: "close", label: "일 마감", children: <ClosingTab api={api} today={today} onSaved={refresh} /> },
-                  { key: "waste", label: "폐기", children: <WasteTab api={api} master={master} onSaved={refresh} /> },
+                  { key: "waste", label: "폐기", children: <WasteTab api={api} master={master} today={today} onSaved={refresh} /> },
                   { key: "count", label: "재고 실사", children: <CountTab api={api} master={master} today={today} onSaved={refresh} /> },
                   { key: "order", label: "발주 요청", children: <OrderTab api={api} master={master} today={today} onSaved={refresh} /> },
                   { key: "delivery", label: `입고 확인 ${today.openOrders.length || ""}`, children: <DeliveryTab api={api} master={master} today={today} onSaved={refresh} /> },

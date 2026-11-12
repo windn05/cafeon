@@ -1,5 +1,7 @@
 package com.example.cafeon_pos.controller;
 
+import com.example.cafeon_pos.config.BizClock;
+
 import com.example.cafeon_pos.config.PosAuthFilter;
 import com.example.cafeon_pos.service.PosService;
 import com.example.cafeon_pos.service.SyncService;
@@ -28,6 +30,8 @@ public class PosController {
 
     public record ReplyReq(String reply) {}
 
+    public record CancelReq(String reason) {}
+
     @PostMapping("/auth/register")
     public Map<String, Object> register(@RequestBody RegisterReq req) {
         return pos.register(req.storeKey());
@@ -54,20 +58,30 @@ public class PosController {
         return pos.me(store);
     }
 
+    // 매장마다 판매를 한 줄로 처리한다 (다른 매장끼리는 동시에)
+    private final java.util.concurrent.ConcurrentHashMap<String, Object> saleLocks = new java.util.concurrent.ConcurrentHashMap<>();
+
     @PostMapping("/sales")
     public Map<String, Object> sale(@RequestAttribute(STORE) String store, @RequestBody PosService.SaleReq req) {
-        return send(store, pos.sale(store, req));
+        synchronized (saleLocks.computeIfAbsent(store, k -> new Object())) {
+            return send(store, pos.sale(store, req));
+        }
     }
 
     @GetMapping("/sales")
     public List<Map<String, Object>> receipts(@RequestAttribute(STORE) String store,
                                               @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return pos.receipts(store, date == null ? LocalDate.now() : date);
+        return pos.receipts(store, date == null ? BizClock.today() : date);
     }
 
     @PostMapping("/closings")
     public Map<String, Object> close(@RequestAttribute(STORE) String store, @RequestBody PosService.CloseReq req) {
         return send(store, pos.close(store, req));
+    }
+
+    @PostMapping("/closings/cancel")
+    public Map<String, Object> cancelClose(@RequestAttribute(STORE) String store, @RequestBody CancelReq req) {
+        return send(store, pos.cancelClose(store, req.reason()));
     }
 
     @PostMapping("/wastes")
@@ -93,6 +107,11 @@ public class PosController {
     @GetMapping("/messages")
     public List<Map<String, Object>> messages(@RequestAttribute(STORE) String store) {
         return pos.messages(store);
+    }
+
+    @PostMapping("/messages/read-all")
+    public Map<String, Object> readAll(@RequestAttribute(STORE) String store) {
+        return send(store, pos.readAll(store));
     }
 
     @PostMapping("/messages/{id}/read")

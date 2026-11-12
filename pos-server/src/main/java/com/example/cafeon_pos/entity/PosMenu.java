@@ -25,6 +25,9 @@ public class PosMenu {
     private Long price;
     @Column(length = 10)
     private String status;
+    // 매장 제조 · 완제품 (완제품은 레시피 대신 납품 품목 1개)
+    @Column(length = 10)
+    private String productType;
     @Column(columnDefinition = "TEXT")
     private String recipeJson;
     private int sortOrder;

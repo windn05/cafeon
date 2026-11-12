@@ -1,6 +1,6 @@
 // 매장 POS 업무 탭: 판매 · 영수증 · 일 마감 · 폐기 · 재고 실사 · 발주 요청 · 입고 확인 · 전송 기록
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Button, DatePicker, Empty, Input, InputNumber, Popconfirm, Segmented, Select, Table, message } from "antd";
+import { Alert, Button, DatePicker, Empty, Input, InputNumber, Modal, Popconfirm, Segmented, Select, Table, message } from "antd";
 import { CheckCircleFilled, ShoppingCartOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { SendBadge, errText, num, won } from "./posShared";
@@ -10,6 +10,9 @@ const CHANNELS = ["매장", "포장", "배달"];
 const WASTE_REASONS = ["유통기한 경과", "당일 미판매", "제조 실수", "파손", "품질 불량", "기타"];
 
 // 본사 기준 재고에 POS 식자재 정보(포장 단위)를 붙인다. 본사 재고를 아직 못 받았으면 식자재 목록만.
+// 영수증 번호(매장-날짜-순번) → 주문 순번
+const orderNo = (receiptNo) => `주문 ${Number(String(receiptNo).split("-").pop())}번`;
+
 const stockRows = (master, today) => {
   const byCode = Object.fromEntries((today.stock || []).map((s) => [s.materialCode, s]));
   return master.materials.map((m) => ({ ...m, ...(byCode[m.materialCode] || {}), unit: m.unit, materialName: m.materialName }));
@@ -17,7 +20,7 @@ const stockRows = (master, today) => {
 
 const SnapshotNote = ({ today }) => (
   <div className="ops-note">
-    본사 기준 재고 · {today.snapshotAt ? `${dayjs(today.snapshotAt).format("HH:mm")}에 받음` : "아직 받지 못함"} (본사 연결 시 20초마다 갱신)
+    본사 기준 재고 · {today.snapshotAt ? `${dayjs(today.snapshotAt).format("HH:mm")}에 받음` : "아직 받지 못함"} · 오늘 판매한 만큼 레시피대로 미리 빼서 영업 중에 세어도 됩니다 (본사 연결 시 20초마다 갱신)
   </div>
 );
 
@@ -46,7 +49,7 @@ export const SaleTab = ({ api, master, today, onSaved }) => {
     setSending(true);
     try {
       const { data } = await api.post("/sales", { paymentMethod: payment, channel, items: cart.map((l) => ({ menuCode: l.menu.menuCode, quantity: l.qty })) });
-      message.success(`결제 완료 · ${won(data.totalAmount)} · ${data.receiptNo}`);
+      message.success(`결제 완료 · ${orderNo(data.receiptNo)} · ${won(data.totalAmount)}`);
       setCart([]);
       onSaved();
     } catch (err) {
@@ -122,7 +125,7 @@ export const ReceiptsTab = ({ today }) => (
     locale={{ emptyText: <Empty description="오늘 결제한 영수증이 없습니다." /> }}
     columns={[
       { title: "시각", dataIndex: "saleTime", width: 80, render: (v) => String(v).slice(0, 5) },
-      { title: "영수증", dataIndex: "receiptNo", width: 190 },
+      { title: "주문", dataIndex: "receiptNo", width: 90, render: (v) => orderNo(v) },
       { title: "메뉴", key: "lines", render: (_, r) => r.lines.map((l) => `${l.menuName}×${l.quantity}`).join(", ") },
       { title: "결제 · 채널", key: "pay", width: 120, render: (_, r) => `${r.paymentMethod} · ${r.channel}` },
       { title: "금액", dataIndex: "totalAmount", align: "right", width: 100, render: (v) => <span className="crud-num">{won(v)}</span> },
@@ -133,6 +136,60 @@ export const ReceiptsTab = ({ today }) => (
 );
 
 // ----- 일 마감 -----
+const CANCEL_REASONS = ["마감 후 추가 손님", "시재 다시 셈", "결제 누락 · 오류", "기타"];
+
+// 마감한 뒤: 마감 내용 + 마감 취소 (오늘 것만, 사유 필수)
+const ClosedView = ({ api, closing: c, onSaved }) => {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState(CANCEL_REASONS[0]);
+  const [memo, setMemo] = useState("");
+  const [sending, setSending] = useState(false);
+  const cancel = async () => {
+    setSending(true);
+    try {
+      await api.post("/closings/cancel", { reason: memo.trim() ? `${reason} · ${memo.trim()}` : reason });
+      message.success("마감을 취소했습니다. 다시 판매할 수 있습니다.");
+      setOpen(false);
+      onSaved();
+    } catch (err) {
+      message.error(errText(err, "마감을 취소하지 못했습니다."));
+    } finally {
+      setSending(false);
+    }
+  };
+  return (
+    <>
+      <div className="closing-done">
+        <span>
+          <CheckCircleFilled /> {dayjs(c.closedAt).format("HH:mm")} 마감 · 매출 {won(c.totalAmount)} · 시재 {c.cashDiff ? `${c.cashDiff > 0 ? "+" : ""}${c.cashDiff.toLocaleString()}원` : "일치"}
+          {c.note ? ` · ${c.note}` : ""}
+        </span>
+        <span className="closing-done-actions">
+          <SendBadge status={c.sendStatus} />
+          <Button size="small" onClick={() => setOpen(true)}>
+            마감 취소
+          </Button>
+        </span>
+      </div>
+      {c.reopenCount > 0 && <div className="pos-hint" style={{ marginTop: 8 }}>오늘 마감을 {c.reopenCount}번 취소하고 다시 마감했습니다.</div>}
+      <Modal
+        open={open}
+        title="오늘 마감을 취소할까요?"
+        okText="마감 취소"
+        okButtonProps={{ danger: true, loading: sending, disabled: reason === "기타" && !memo.trim() }}
+        cancelText="닫기"
+        onOk={cancel}
+        onCancel={() => setOpen(false)}
+        destroyOnHidden
+      >
+        <p className="pos-hint">취소하면 다시 판매 · 폐기를 받을 수 있고, 본사의 오늘 마감과 판매소진 기록도 되돌립니다. 영업을 마치면 다시 마감해 주세요.</p>
+        <Select value={reason} onChange={setReason} options={CANCEL_REASONS.map((r) => ({ value: r, label: r }))} style={{ width: "100%", marginBottom: 8 }} />
+        <Input value={memo} onChange={(e) => setMemo(e.target.value)} maxLength={100} placeholder={reason === "기타" ? "사유 (필수)" : "메모 (선택)"} />
+      </Modal>
+    </>
+  );
+};
+
 export const ClosingTab = ({ api, today, onSaved }) => {
   const s = today.sales;
   const [cash, setCash] = useState(null);
@@ -152,16 +209,7 @@ export const ClosingTab = ({ api, today, onSaved }) => {
     }
   };
   const c = today.closing;
-  if (c)
-    return (
-      <div className="closing-done">
-        <span>
-          <CheckCircleFilled /> {dayjs(c.closedAt).format("HH:mm")} 마감 · 매출 {won(c.totalAmount)} · 시재 {c.cashDiff ? `${c.cashDiff > 0 ? "+" : ""}${c.cashDiff.toLocaleString()}원` : "일치"}
-          {c.note ? ` · ${c.note}` : ""}
-        </span>
-        <SendBadge status={c.sendStatus} />
-      </div>
-    );
+  if (c) return <ClosedView api={api} closing={c} onSaved={onSaved} />;
   return (
     <div className="closing-sheet">
       <div className="closing-figures">
@@ -209,7 +257,7 @@ export const ClosingTab = ({ api, today, onSaved }) => {
 };
 
 // ----- 폐기 -----
-export const WasteTab = ({ api, master, onSaved }) => {
+export const WasteTab = ({ api, master, today, onSaved }) => {
   const [code, setCode] = useState(null);
   const [qty, setQty] = useState(null);
   const [reason, setReason] = useState("유통기한 경과");
@@ -231,6 +279,8 @@ export const WasteTab = ({ api, master, onSaved }) => {
       setSending(false);
     }
   };
+  // 폐기 금액은 그날 마감에 들어가므로 마감 뒤에는 받지 않는다
+  if (today.closing) return <Alert type="info" showIcon message="오늘은 마감했습니다. 폐기는 마감 전에 입력하거나 내일 입력해 주세요." />;
   return (
     <div className="sa-form">
       <Select showSearch optionFilterProp="label" placeholder="폐기할 식자재" value={code} onChange={setCode} options={master.materials.map((s) => ({ value: s.materialCode, label: s.materialName }))} />
@@ -519,5 +569,90 @@ export const OutboxTab = ({ api, sync, onSaved }) => {
         ]}
       />
     </>
+  );
+};
+
+// ----- 레시피 -----
+// 본사가 정한 메뉴별 레시피(1잔 · 1개 기준). 완제품은 납품받은 그대로 판다
+const PACKAGING = "포장재·소모품";
+const qtyText = (q, unit) => `${Number(q).toLocaleString(undefined, { maximumFractionDigits: 1 })} ${unit}`;
+
+export const RecipeTab = ({ master }) => {
+  const menus = master.menus.filter((m) => m.status !== "단종");
+  const cats = ["전체", ...new Set(menus.map((m) => m.category))];
+  const [cat, setCat] = useState("전체");
+  const [code, setCode] = useState(menus[0]?.menuCode);
+  const list = menus.filter((m) => cat === "전체" || m.category === cat);
+  const menu = menus.find((m) => m.menuCode === code);
+  const finished = menu?.productType === "완제품";
+  const recipe = menu?.recipe || [];
+  const ingredients = recipe.filter((l) => l.materialType !== PACKAGING);
+  const packaging = recipe.filter((l) => l.materialType === PACKAGING);
+
+  return (
+    <div className="pos">
+      <div>
+        <div className="pos-cats">
+          <Segmented size="large" value={cat} onChange={setCat} options={cats} />
+        </div>
+        <div className="pos-menus">
+          {list.map((m) => (
+            <button key={m.menuCode} type="button" className={`pos-menu ${m.menuCode === code ? "is-picked" : ""}`} onClick={() => setCode(m.menuCode)}>
+              <b>{m.menuName}</b>
+              <span>{m.productType === "완제품" ? "완제품" : `재료 ${m.recipe.filter((l) => l.materialType !== PACKAGING).length}가지`}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="pos-recipe">
+        {!menu ? (
+          <Empty description="메뉴를 고르세요" />
+        ) : (
+          <>
+            <div className="pos-recipe-head">
+              <b>{menu.menuName}</b>
+              <span>
+                {menu.category} · {won(menu.price)}
+                {finished && <span className="crud-tag is-gray">완제품</span>}
+              </span>
+            </div>
+            {finished ? (
+              <p className="pos-recipe-note">
+                레시피 없이 납품받은 그대로 판매하는 완제품입니다.
+                {recipe[0] ? ` 1개 팔 때마다 ${recipe[0].materialName} 재고 1개가 빠집니다.` : ""}
+              </p>
+            ) : recipe.length === 0 ? (
+              <p className="pos-recipe-note">본사에 등록된 레시피가 없습니다.</p>
+            ) : (
+              <>
+                <h4>재료 · 1잔 기준</h4>
+                <ul className="pos-recipe-lines">
+                  {ingredients.map((l) => (
+                    <li key={l.materialCode}>
+                      <span>{l.materialName}</span>
+                      <b>{qtyText(l.quantity, l.unit)}</b>
+                    </li>
+                  ))}
+                </ul>
+                {packaging.length > 0 && (
+                  <>
+                    <h4>포장</h4>
+                    <ul className="pos-recipe-lines is-sub">
+                      {packaging.map((l) => (
+                        <li key={l.materialCode}>
+                          <span>{l.materialName}</span>
+                          <b>{qtyText(l.quantity, l.unit)}</b>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </>
+            )}
+            {!finished && <p className="pos-hint pos-recipe-foot">본사 레시피 기준입니다. 레시피가 바뀌면 본사 알림으로 안내되고 이 화면에도 바로 반영됩니다.</p>}
+          </>
+        )}
+      </div>
+    </div>
   );
 };
