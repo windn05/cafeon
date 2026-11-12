@@ -49,4 +49,8 @@ public class DailyClosing {
     private String closedBy;
     @Column(nullable = false)
     private LocalDateTime closedAt;
+    // 매장이 이 날 마감을 취소하고 다시 마감한 횟수 · 마지막 취소 사유
+    private Integer reopenCount;
+    @Column(length = 200)
+    private String reopenNote;
 }

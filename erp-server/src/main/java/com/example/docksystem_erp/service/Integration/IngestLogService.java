@@ -1,5 +1,7 @@
 package com.example.docksystem_erp.service.Integration;
 
+import com.example.docksystem_erp.util.BizClock;
+
 import com.example.docksystem_erp.entity.Integration.IngestLog;
 import com.example.docksystem_erp.entity.Store.Store;
 import com.example.docksystem_erp.repository.Integration.IngestLogRepository;
@@ -23,7 +25,7 @@ public class IngestLogService {
         log.setStore(store);
         log.setDataType(type);
         log.setBusinessDate(businessDate);
-        log.setReceivedAt(LocalDateTime.now());
+        log.setReceivedAt(BizClock.now());
         log.setRecordCount(count);
         log.setStatus(ok ? "성공" : "실패");
         log.setMessage(message == null ? null : message.length() > 300 ? message.substring(0, 300) : message);

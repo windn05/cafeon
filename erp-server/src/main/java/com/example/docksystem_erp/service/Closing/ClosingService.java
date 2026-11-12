@@ -1,10 +1,14 @@
 package com.example.docksystem_erp.service.Closing;
 
+import com.example.docksystem_erp.util.BizClock;
+
 import com.example.docksystem_erp.dto.Ops.OpsRequests;
 import com.example.docksystem_erp.entity.Closing.DailyClosing;
 import com.example.docksystem_erp.entity.Inventory.InventoryTxn;
 import com.example.docksystem_erp.entity.Store.Store;
+import com.example.docksystem_erp.entity.Integration.IngestLog;
 import com.example.docksystem_erp.repository.Closing.DailyClosingRepository;
+import com.example.docksystem_erp.repository.Integration.IngestLogRepository;
 import com.example.docksystem_erp.repository.Inventory.InventoryTxnRepository;
 import com.example.docksystem_erp.service.Sales.OpsGuard;
 import com.example.docksystem_erp.util.CurrentUser;
@@ -28,6 +32,7 @@ public class ClosingService {
     private final OpsGuard guard;
     private final DailyClosingRepository closingRepository;
     private final InventoryTxnRepository txnRepository;
+    private final IngestLogRepository ingestLogRepository;
 
     // 기간 안 날짜별 매출과 마감 여부 (최근 날짜부터)
     @Transactional(readOnly = true)
@@ -54,6 +59,7 @@ public class ClosingService {
             row.put("closed", c != null);
             row.put("closingNo", c == null ? null : c.getClosingNo());
             row.put("cashDiff", c == null ? null : c.getCashDiff());
+            row.put("reopenCount", c == null || c.getReopenCount() == null ? 0 : c.getReopenCount());
             days.add(row);
         }
         return days;
@@ -68,7 +74,6 @@ public class ClosingService {
         result.put("storeName", store.getStoreName());
         result.put("date", date);
         result.put("closing", closingRepository.findByStore_StoreNoAndClosingDate(storeNo, date).map(this::toMap).orElse(null));
-        result.put("consumption", consumption(storeNo, date));
         Date earlier = jdbc.queryForObject(
                 "select min(s.sale_date) from sales s where s.store_no = ? and s.sale_date < ? and not exists " +
                 "(select 1 from daily_closings c where c.store_no = s.store_no and c.closing_date = s.sale_date)",
@@ -80,7 +85,7 @@ public class ClosingService {
     // 마감 확정
     public Map<String, Object> close(OpsRequests.Closing req) {
         Store store = guard.store(req.storeNo());
-        LocalDate date = req.date() == null ? LocalDate.now() : req.date();
+        LocalDate date = req.date() == null ? BizClock.today() : req.date();
         guard.requireOpenDay(store, date);
         if (req.cashCounted() == null || req.cashCounted() < 0) {
             throw new IllegalArgumentException("실제로 센 현금(시재)을 입력해 주세요.");
@@ -106,11 +111,25 @@ public class ClosingService {
         closing.setWasteAmount(((Number) c.get("wasteAmount")).doubleValue());
         closing.setNote(req.note());
         closing.setClosedBy(CurrentUser.id());
-        closing.setClosedAt(LocalDateTime.now());
+        closing.setClosedAt(BizClock.now());
+        // 매장이 앞서 이 날 마감을 취소했으면 재마감 이력으로 남긴다
+        List<IngestLog> cancels = ingestLogRepository.findByStore_StoreNoAndDataTypeAndBusinessDateAndStatusOrderByLogNoDesc(
+                store.getStoreNo(), IngestLog.CLOSING_CANCEL, date, "성공");
+        if (!cancels.isEmpty()) {
+            closing.setReopenCount(cancels.size());
+            closing.setReopenNote(cancels.get(0).getMessage());
+        }
         closingRepository.save(closing);
 
         postConsumption(store.getStoreNo(), date, closing.getClosingNo(), CurrentUser.id());
         return toMap(closing);
+    }
+
+    // 매장 POS에서 보낸 마감 취소. 이미 없으면(마감이 본사에 안 들어왔던 경우) 그대로 성공 처리
+    public Map<String, Object> cancelByStore(Store store, LocalDate date) {
+        Optional<DailyClosing> c = closingRepository.findByStore_StoreNoAndClosingDate(store.getStoreNo(), date);
+        c.ifPresent(x -> cancel(x.getClosingNo()));
+        return Map.of("date", date, "cancelled", c.isPresent());
     }
 
     // 마감 취소: 판매소진 재고 기록도 함께 되돌린다
@@ -163,7 +182,7 @@ public class ClosingService {
 
     private void postConsumption(Long storeNo, LocalDate date, Long closingNo, String user) {
         List<Object[]> rows = new ArrayList<>();
-        Timestamp now = Timestamp.valueOf(LocalDateTime.now());
+        Timestamp now = Timestamp.valueOf(BizClock.now());
         for (Map<String, Object> c : consumption(storeNo, date)) {
             double qty = ((Number) c.get("quantity")).doubleValue();
             double cost = ((Number) c.get("cost")).doubleValue();
@@ -189,6 +208,8 @@ public class ClosingService {
         m.put("note", c.getNote());
         m.put("closedBy", c.getClosedBy());
         m.put("closedAt", c.getClosedAt());
+        m.put("reopenCount", c.getReopenCount() == null ? 0 : c.getReopenCount());
+        m.put("reopenNote", c.getReopenNote());
         return m;
     }
 }

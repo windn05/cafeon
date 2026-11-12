@@ -20,6 +20,7 @@ public class IngestLog {
     // 데이터 종류
     public static final String SALES = "판매";
     public static final String CLOSING = "일마감";
+    public static final String CLOSING_CANCEL = "마감취소";
     public static final String WASTE = "폐기";
     public static final String STOCKTAKE = "실사";
     public static final String ORDER = "발주요청";

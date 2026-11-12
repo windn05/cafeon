@@ -9,5 +9,5 @@ import java.util.List;
 public interface OrderRequestRepository extends JpaRepository<OrderRequest, Long> {
     List<OrderRequest> findByRequestDateBetweenOrderByRequestDateDescRequestNoDesc(LocalDate from, LocalDate to);
     List<OrderRequest> findByStatusOrderByRequestDateAscRequestNoAsc(String status);
-    long countByStore_StoreNoAndRequestDate(Long storeNo, LocalDate requestDate);
+    java.util.Optional<OrderRequest> findTopByRequestNumberStartingWithOrderByRequestNumberDesc(String prefix);
 }

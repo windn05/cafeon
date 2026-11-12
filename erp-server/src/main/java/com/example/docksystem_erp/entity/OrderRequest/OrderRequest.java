@@ -26,7 +26,7 @@ public class OrderRequest {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long requestNo;
-    // 요청 번호 (예: RQ-ST-GN01-261106-01)
+    // 요청 번호 (예: RQ-261106-003, 날짜별 본사 전체 순번)
     @Column(nullable = false, unique = true, length = 40)
     private String requestNumber;
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

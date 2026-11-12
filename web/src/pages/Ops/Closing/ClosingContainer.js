@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, ConfigProvider, Table } from "antd";
+import { Alert, Button, ConfigProvider } from "antd";
 import { CheckCircleFilled, ClockCircleOutlined, SolutionOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { DashHeader, EmptyState, Loading, Panel } from "../../../components/Dashboard/Dashboard";
@@ -58,6 +58,7 @@ const Matrix = ({ stores, selected, onPick }) => {
                 let badge;
                 if (!x || !x.receipts) badge = <span className="matrix-none" title="판매 없음">–</span>;
                 else if (x.closed && x.cashDiff) badge = <span className="status-badge badge-amber">시재 {x.cashDiff > 0 ? "+" : ""}{x.cashDiff.toLocaleString()}</span>;
+                else if (x.closed && x.reopenCount) badge = <span className="status-badge badge-amber">재마감</span>;
                 else if (x.closed) badge = <span className="matrix-ok">마감</span>;
                 else if (d === to) badge = <span className="status-badge badge-blue">영업 중</span>;
                 else badge = <span className="status-badge badge-red">미수신</span>;
@@ -143,6 +144,11 @@ const ClosingDetail = ({ store, storeNo, date }) => {
             <CheckCircleFilled /> 매장 마감 수신 · {c.closedBy} · {dayjs(c.closedAt).format("M/D HH:mm")}
             {c.note ? ` · 메모: ${c.note}` : ""}
           </span>
+          {c.reopenCount > 0 && (
+            <span className="status-badge badge-amber" title="매장에서 마감을 취소하고 다시 마감했습니다">
+              마감 취소 후 재마감 {c.reopenCount}회{c.reopenNote ? ` · ${c.reopenNote}` : ""}
+            </span>
+          )}
         </div>
       ) : (
         <Alert
@@ -221,24 +227,6 @@ const ClosingDetail = ({ store, storeNo, date }) => {
           )}
         </div>
       </div>
-
-      <div>
-        <div className="ops-note" style={{ marginBottom: 6 }}>
-          {c ? "마감 때 매장 재고에서 뺀 식자재 (레시피 기준)" : "마감되면 매장 재고에서 빠질 식자재 (레시피 기준)"}
-        </div>
-        <Table
-          size="small"
-          rowKey="materialNo"
-          dataSource={data.consumption}
-          pagination={{ pageSize: 6, hideOnSinglePage: true, showSizeChanger: false }}
-          locale={{ emptyText: "판매가 없습니다." }}
-          columns={[
-            { title: "식자재", dataIndex: "materialName" },
-            { title: "사용량", dataIndex: "quantity", align: "right", render: (v, r) => <span className="crud-num">{num(v)} {r.unit}</span> },
-            { title: "원가", dataIndex: "cost", align: "right", render: (v) => <span className="crud-num">{won(v)}</span> },
-          ]}
-        />
-      </div>
     </div>
   );
 };
@@ -252,7 +240,6 @@ const ClosingContainer = () => {
     <ConfigProvider theme={{ token: { colorPrimary: ACCENT } }}>
       <div className="dash dash-erp">
         <DashHeader
-          title="마감 현황"
           subtitle="매장 POS에서 보낸 일 마감(매출 확정 · 현금 시재)을 모니터링합니다. 칸을 누르면 그날 마감 내용을 볼 수 있습니다."
         />
         <Panel title={`최근 ${DAYS}일 · 전 매장`} extra="미수신: 영업일이 지났는데 마감이 안 들어옴" bodyClassName="is-flush">

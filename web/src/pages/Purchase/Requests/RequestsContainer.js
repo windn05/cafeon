@@ -13,6 +13,31 @@ const STATUS_TONE = { 요청: "amber", 승인: "green", 반려: "gray" };
 const { RangePicker } = DatePicker;
 const day = (d) => (d ? dayjs(d).format("M/D (dd)") : "-");
 
+// 공급 방식 배지: 물류센터 · 직송
+const Supply = ({ v }) => <span className={`crud-tag ${v === "직송" ? "is-warn" : "is-info"}`}>{v}</span>;
+
+// 승인하면 어떻게 나뉠지: 물류센터 출고 품목 수 · 직송 공급업체 · 재고 부족으로 직송 전환된 품목
+const splitPlan = (lines, packs) => {
+  let ship = 0;
+  let shortItems = 0;
+  const suppliers = new Set();
+  lines.forEach((l) => {
+    const n = packs[l.lineNo] ?? 0;
+    if (n <= 0) return;
+    if (l.supplyType === "직송") {
+      suppliers.add(l.clientName || "미지정");
+      return;
+    }
+    const fromCenter = Math.min(n, l.centerPacks ?? n);
+    if (fromCenter > 0) ship++;
+    if (n > fromCenter) {
+      shortItems++;
+      suppliers.add(l.clientName || "미지정");
+    }
+  });
+  return { ship, suppliers: [...suppliers], shortItems };
+};
+
 // 처리 대기 요청 1건: 수량을 고쳐서 승인하거나 사유를 적어 반려
 const RequestCard = ({ req, onDone }) => {
   const [packs, setPacks] = useState({});
@@ -25,7 +50,7 @@ const RequestCard = ({ req, onDone }) => {
   }, [req]);
 
   const amount = req.lines.reduce((s, l) => s + (packs[l.lineNo] ?? 0) * l.packPrice, 0);
-  const suppliers = [...new Set(req.lines.filter((l) => (packs[l.lineNo] ?? 0) > 0).map((l) => l.clientName || "미지정"))];
+  const plan = splitPlan(req.lines, packs);
 
   const approve = async () => {
     setBusy(true);
@@ -33,7 +58,7 @@ const RequestCard = ({ req, onDone }) => {
       const res = await ERPapi.post(`${ERP_API}/order-requests/${req.requestNo}/approve`, {
         lines: req.lines.map((l) => ({ lineNo: l.lineNo, receivedPacks: packs[l.lineNo] ?? 0 })),
       });
-      message.success(`${req.storeName} 요청을 승인했습니다. 발주서: ${res.data.poNumbers}`);
+      message.success(`${req.storeName} 요청을 승인했습니다. 출고 · 발주: ${res.data.poNumbers}`);
       onDone();
     } catch (err) {
       message.error(errorText(err, "승인하지 못했습니다."));
@@ -76,29 +101,50 @@ const RequestCard = ({ req, onDone }) => {
         dataSource={req.lines}
         scroll={{ x: "max-content" }}
         columns={[
-          { title: "식자재", dataIndex: "materialName", render: (v, l) => <><div className="crud-strong">{v}</div><div className="crud-sub">{l.packLabel} · {won(l.packPrice)}</div></> },
-          { title: "공급업체", dataIndex: "clientName", render: (v) => v || <span className="crud-badge red">미지정</span> },
+          { title: "식자재", dataIndex: "materialName", render: (v) => <span className="crud-strong">{v}</span> },
+          { title: "구매 단위", dataIndex: "packLabel", render: (v) => <span className="crud-sub">{v}</span> },
+          { title: "단가", dataIndex: "packPrice", align: "right", render: (v) => <span className="crud-num">{won(v)}</span> },
+          { title: "공급", dataIndex: "supplyType", render: (v) => <Supply v={v} /> },
+          {
+            title: "센터 재고",
+            dataIndex: "centerPacks",
+            align: "right",
+            render: (v, l) => (l.supplyType === "직송" || v === undefined ? <span className="crud-sub">-</span> : <span className="crud-num">{v}개</span>),
+          },
+          { title: "공급업체", dataIndex: "clientName", render: (v, l) => (l.supplyType === "직송" ? v || <span className="crud-badge red">미지정</span> : <span className="crud-sub">-</span>) },
           { title: "요청", dataIndex: "requestedPacks", align: "right", render: (v) => <span className="crud-num">{v}개</span> },
           {
             title: "승인 수량",
             key: "approve",
             width: 150,
             render: (_, l) => (
-              <InputNumber size="small" min={0} value={packs[l.lineNo]} onChange={(v) => setPacks((x) => ({ ...x, [l.lineNo]: v ?? 0 }))} addonAfter="개" style={{ width: "100%" }} />
+              <>
+                <InputNumber size="small" min={0} value={packs[l.lineNo]} onChange={(v) => setPacks((x) => ({ ...x, [l.lineNo]: v ?? 0 }))} addonAfter="개" style={{ width: "100%" }} />
+                {l.supplyType !== "직송" && l.centerPacks !== undefined && (packs[l.lineNo] ?? 0) > l.centerPacks && (
+                  <div className="crud-sub" style={{ color: "var(--warn)", marginTop: 4 }}>
+                    센터 재고 부족 · {(packs[l.lineNo] ?? 0) - l.centerPacks}개 직송
+                  </div>
+                )}
+              </>
             ),
           },
           { title: "금액", key: "amount", align: "right", render: (_, l) => <span className="crud-num">{won((packs[l.lineNo] ?? 0) * l.packPrice)}</span> },
         ]}
       />
       <footer className="po-group-foot">
-        <span className="ops-note">발주서 {suppliers.length}장 생성 예정 ({suppliers.join(", ") || "-"})</span>
+        <span className="ops-note">
+          {[plan.ship ? `물류센터 출고 ${plan.ship}품목` : null, plan.suppliers.length ? `직송 ${plan.suppliers.length}곳 (${plan.suppliers.join(", ")})` : null]
+            .filter(Boolean)
+            .join(" · ") || "-"}
+          {plan.shortItems ? ` · 센터 재고 부족 ${plan.shortItems}품목은 직송` : ""}
+        </span>
         <strong>{won(amount)}</strong>
         <Button icon={<CloseOutlined />} onClick={() => setRejecting(true)} disabled={busy}>
           반려
         </Button>
-        <Popconfirm title="이 요청을 승인할까요?" description="공급업체별 발주서가 바로 만들어집니다." okText="승인" cancelText="닫기" onConfirm={approve} disabled={!amount}>
+        <Popconfirm title="이 요청을 승인할까요?" description="물류센터 출고와 직송 발주서가 바로 만들어집니다." okText="승인" cancelText="닫기" onConfirm={approve} disabled={!amount}>
           <Button type="primary" icon={<CheckOutlined />} loading={busy} disabled={!amount}>
-            승인 · 발주
+            승인
           </Button>
         </Popconfirm>
       </footer>
@@ -135,8 +181,7 @@ const RequestsContainer = () => {
     <ConfigProvider theme={{ token: { colorPrimary: ACCENT } }}>
       <div className="dash dash-erp">
         <DashHeader
-          title="매장 발주 요청"
-          subtitle="매장 POS에서 올라온 발주 요청을 확인해 승인하면 공급업체별 발주서가 만들어지고, 승인 · 반려 결과와 도착 예정일이 매장 POS로 바로 전달됩니다. 수량은 승인 전에 조정할 수 있습니다."
+          subtitle="매장이 올린 발주 요청을 승인하면 물류센터 품목은 물류센터 재고에서 출고하고, 직송 품목(우유 등)은 공급업체 발주서가 만들어집니다. 센터 재고가 모자라면 모자란 만큼 직송으로 돌립니다. 결과와 도착 예정일은 매장 POS로 바로 전달됩니다."
         />
         <Panel>
           <Tabs
@@ -182,7 +227,8 @@ const RequestsContainer = () => {
                             dataSource={r.lines}
                             columns={[
                               { title: "식자재", dataIndex: "materialName" },
-                              { title: "공급업체", dataIndex: "clientName" },
+                              { title: "공급", dataIndex: "supplyType", render: (v) => <Supply v={v || "물류센터"} /> },
+                              { title: "공급업체", dataIndex: "clientName", render: (v, l) => (l.supplyType === "직송" ? v || "-" : "-") },
                               { title: "요청", dataIndex: "requestedPacks", align: "right", render: (v) => `${v}개` },
                               { title: "승인", dataIndex: "approvedPacks", align: "right", render: (v) => (v === null || v === undefined ? "-" : `${v}개`) },
                             ]}
@@ -196,7 +242,7 @@ const RequestsContainer = () => {
                         { title: "품목", dataIndex: "lineCount", align: "right", render: (v) => `${v}개` },
                         { title: "금액", dataIndex: "amount", align: "right", render: (v) => <span className="crud-num">{won(v)}</span> },
                         { title: "상태", dataIndex: "status", render: (v) => <Badge value={v} tones={STATUS_TONE} /> },
-                        { title: "발주서 · 사유", key: "result", render: (_, r) => <span className="crud-sub">{r.poNumbers || r.rejectReason || r.note || ""}</span> },
+                        { title: "출고 · 발주 · 사유", key: "result", render: (_, r) => <span className="crud-sub">{r.poNumbers || r.rejectReason || r.note || ""}</span> },
                       ]}
                     />
                   </>

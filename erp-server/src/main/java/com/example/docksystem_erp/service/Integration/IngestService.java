@@ -1,5 +1,7 @@
 package com.example.docksystem_erp.service.Integration;
 
+import com.example.docksystem_erp.util.BizClock;
+
 import com.example.docksystem_erp.dto.Ops.OpsRequests;
 import com.example.docksystem_erp.entity.Material.Material;
 import com.example.docksystem_erp.entity.Menu.Menu;
@@ -48,6 +50,7 @@ public class IngestService {
     public record ReceiptIn(String receiptNo, LocalDate saleDate, LocalTime saleTime, String paymentMethod, String channel, List<ItemIn> items) {}
     public record ItemIn(String menuCode, Integer quantity) {}
     public record ClosingIn(LocalDate date, Long cashCounted, String note) {}
+    public record ClosingCancelIn(LocalDate date, String reason) {}
     public record WasteIn(LocalDate date, String materialCode, Double quantity, String reason, String note) {}
     public record StocktakeIn(LocalDate date, String note, List<CountIn> lines) {}
     public record CountIn(String materialCode, Double countedQty) {}
@@ -83,6 +86,7 @@ public class IngestService {
             x.put("category", m.getCategory());
             x.put("price", m.getPrice());
             x.put("status", m.getStatus());
+            x.put("productType", m.productTypeOrDefault());
             x.put("recipe", m.getRecipeItems().stream().map(r -> Map.of(
                     "materialCode", r.getMaterial().getMaterialCode(), "quantity", r.getQuantity(), "unit", r.getMaterial().getMaterialUnit())).toList());
             menus.add(x);
@@ -127,6 +131,11 @@ public class IngestService {
         return closingService.close(new OpsRequests.Closing(store.getStoreNo(), in.date(), in.cashCounted(), in.note()));
     }
 
+    public Map<String, Object> cancelClosing(Store store, ClosingCancelIn in) {
+        if (in.reason() == null || in.reason().isBlank()) throw new IllegalArgumentException("마감 취소 사유가 없습니다.");
+        return closingService.cancelByStore(store, in.date() == null ? BizClock.today() : in.date());
+    }
+
     public Map<String, Object> waste(Store store, WasteIn in) {
         return inventoryService.addWaste(new OpsRequests.Waste(store.getStoreNo(), in.date(), material(in.materialCode()).getMaterialNo(),
                 in.quantity(), in.reason(), in.note()));
@@ -164,7 +173,7 @@ public class IngestService {
     // 매장 앱 화면용: 오늘 판매 · 마감 준비 · 재고 · 입고 예정 · 최근 요청
     @Transactional(readOnly = true)
     public Map<String, Object> today(Store store) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = BizClock.today();
         Map<String, Object> r = new LinkedHashMap<>();
         r.put("storeName", store.getStoreName());
         r.put("date", today);
