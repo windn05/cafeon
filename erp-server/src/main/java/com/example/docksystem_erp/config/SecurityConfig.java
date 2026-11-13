@@ -1,5 +1,6 @@
 package com.example.docksystem_erp.config;
 
+import com.example.docksystem_erp.JwtSecurity.AutomationKeyFilter;
 import com.example.docksystem_erp.JwtSecurity.JwtAuthenticationFilter;
 import com.example.docksystem_erp.JwtSecurity.JwtProvider;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,9 @@ public class SecurityConfig {
     private final JwtProvider jwtProvider;
     @Value("${security.enabled:true}")
     private boolean securityEnabled;
+    // 자동화 서버(n8n)용 키. 비워 두면 자동화 키 인증은 꺼진다
+    @Value("${automation.api-key:}")
+    private String automationKey;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -60,6 +64,7 @@ public class SecurityConfig {
                 )
                 // 로그인 안 된 요청은 403이 아니라 401로 응답 → 프론트가 로그인 화면으로 보낼 수 있게
                 .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                .addFilterBefore(new AutomationKeyFilter(automationKey), UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(new JwtAuthenticationFilter(jwtProvider), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

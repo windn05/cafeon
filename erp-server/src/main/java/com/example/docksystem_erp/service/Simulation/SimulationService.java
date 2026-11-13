@@ -123,7 +123,7 @@ public class SimulationService {
     public void wipeOperations() {
         for (String t : List.of("store_message_targets", "store_messages", "ingest_logs", "order_request_lines", "order_requests",
                 "monthly_closings", "shifts", "purchase_order_lines", "purchase_orders", "stocktake_lines", "stocktakes",
-                "inventory_txns", "daily_closings", "sales", "doc_sequences")) {
+                "inventory_txns", "daily_closings", "sales", "doc_sequences", "webhook_events", "automation_logs")) {
             jdbc.update("delete from " + t);
         }
     }
@@ -240,8 +240,18 @@ public class SimulationService {
         return n;
     }
 
+    // 과거 기록을 한꺼번에 만드는 동안에는 자동화 이벤트를 내지 않는다
     @Transactional
     public Map<String, Object> regenerate(int days) {
+        com.example.docksystem_erp.service.Automation.WebhookPublisher.mute(true);
+        try {
+            return regenerateAll(days);
+        } finally {
+            com.example.docksystem_erp.service.Automation.WebhookPublisher.mute(false);
+        }
+    }
+
+    private Map<String, Object> regenerateAll(int days) {
         days = Math.max(7, Math.min(days, 120));
         docSeq.clear();
         long started = System.currentTimeMillis();
