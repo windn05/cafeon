@@ -1,0 +1,24 @@
+.automation .automation-detail {
+  margin-top: 2px;
+  color: var(--text-sub, #6b7280);
+  font-size: 12px;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.automation .automation-actions {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.automation .automation-payload {
+  margin: 0;
+  padding: 10px 12px;
+  max-height: 260px;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.5;
+  background: #f7f7f8;
+  border-radius: 6px;
+}

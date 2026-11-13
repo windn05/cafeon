@@ -24,7 +24,7 @@ const posTheme = {
 };
 
 const TOKEN = "pos.token";
-// 본사 ERP [데이터 수집]에서 'POS 열기'로 넘겨준 연동 키 (한 번 쓰고 지움)
+// 본사 ERP [연동 · 자동화 > 수신 현황]에서 'POS 열기'로 넘겨준 연동 키 (한 번 쓰고 지움)
 const HANDOFF = "pos.registerKey";
 
 const store = {
@@ -111,7 +111,7 @@ const RegisterScreen = ({ onRegistered, notice }) => {
       {notice && <Alert type="warning" showIcon message={notice} style={{ marginBottom: 12 }} />}
       {error && <Alert type="error" showIcon message={error} style={{ marginBottom: 12 }} />}
       <Input.Search placeholder="sk_…" enterButton="등록" size="large" value={key} loading={loading} onChange={(e) => setKey(e.target.value)} onSearch={register} />
-      <p className="pos-hint">연동 키는 본사 ERP의 [데이터 수집] 화면에서 매장별로 발급합니다. 같은 화면의 [매장 POS 열기]로 고른 매장의 POS를 바로 열 수 있습니다.</p>
+      <p className="pos-hint">연동 키는 본사 ERP의 [연동 · 자동화 > 수신 현황] 화면에서 매장별로 발급합니다. 같은 화면의 [매장 POS 열기]로 고른 매장의 POS를 바로 열 수 있습니다.</p>
     </div>
   );
 };

@@ -23,6 +23,7 @@ import Requests from "./pages/Purchase/Requests";
 import Center from "./pages/Purchase/Center";
 import Integration from "./pages/Integration";
 import Simulator from "./pages/Integration/Simulator";
+import Automation from "./pages/Integration/Automation";
 import PosApp from "./Pos/PosApp";
 import Messages from "./pages/Messages";
 import ProtectedRoute from "./components/ProtectedRoute/ProtectedRoute";
@@ -71,10 +72,11 @@ const App = () => {
             <Route path="analysis/menus" element={<MenuAnalysis />} />
             {/* 매장 공지 · 지시 (본사 → 매장 POS) */}
             <Route path="messages" element={<Messages />} />
-            {/* 데이터 수집 */}
+            {/* 연동 · 자동화 */}
             <Route path="integration" element={<Navigate to="/erp/integration/status" replace />} />
             <Route path="integration/status" element={<Integration />} />
             <Route path="integration/simulator" element={<Simulator />} />
+            <Route path="integration/automation" element={<Automation />} />
           </Route>
           {/* 매장 POS: 본사 로그인과 별개 시스템 (매장 연동 키로 기기 등록) */}
           <Route path="/pos" element={<PosApp />} />

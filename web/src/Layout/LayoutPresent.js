@@ -48,9 +48,10 @@ const items = [
     getItem("월간 손익 · 월 마감", "/erp/analysis/pnl"),
     getItem("메뉴 분석", "/erp/analysis/menus"),
   ]),
-  getItem("데이터 수집", "/erp/integration", <ApiOutlined />, [
+  getItem("연동 · 자동화", "/erp/integration", <ApiOutlined />, [
     getItem("수신 현황", "/erp/integration/status"),
     getItem("매장 영업 시뮬레이터", "/erp/integration/simulator"),
+    getItem("자동화 기록", "/erp/integration/automation"),
   ]),
 ];
 
