@@ -1,0 +1,306 @@
+{
+  "id": "cafeonMorning001",
+  "name": "아침 점검",
+  "nodes": [
+    {
+      "id": "fe613495-087d-4092-abd5-45db53822b41",
+      "name": "매일 08:30",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 8 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "5bc1e9b0-2c9f-46d9-ac4f-e56baffef442",
+      "name": "수동 실행",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        380
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "7225d597-4f3d-4534-a4f0-7b86bb1746a7",
+      "name": "수신 현황",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.ERP_API_URL }}/integration/status",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cafeonErpKey0001",
+          "name": "ERP 자동화 키"
+        }
+      }
+    },
+    {
+      "id": "f441f572-96f0-4f37-a945-7949ce3141df",
+      "name": "대기 발주 요청",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.ERP_API_URL }}/order-requests/pending",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cafeonErpKey0001",
+          "name": "ERP 자동화 키"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "67a5842a-6beb-4be2-ad0f-843c8d3922ef",
+      "name": "최근 지시",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.ERP_API_URL }}/store-messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "from",
+              "value": "={{ $now.setZone('Asia/Seoul').minus({ days: 1 }).toISODate() }}"
+            },
+            {
+              "name": "to",
+              "value": "={{ $now.setZone('Asia/Seoul').toISODate() }}"
+            },
+            {
+              "name": "kind",
+              "value": "지시"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cafeonErpKey0001",
+          "name": "ERP 자동화 키"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "c7260aaa-ed76-461a-a094-1fd322ae5c59",
+      "name": "점검 정리",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const won = (n) => Math.round(Number(n) || 0).toLocaleString('ko-KR') + '원';\n// HTTP 노드가 '오류여도 계속'으로 넘긴 응답에서 ERP 오류 메시지 꺼내기\nconst errText = (r) => {\n  const e = r && r.error;\n  if (!e) return null;\n  try { const b = typeof e.description === 'string' ? JSON.parse(e.description) : null; if (b && b.message) return b.message; } catch (x) {}\n  return e.message || JSON.stringify(e);\n};\n\nconst today = $now.setZone('Asia/Seoul');\nconst date = today.minus({ days: 1 }).toISODate();\nconst stores = $('수신 현황').all().map((i) => i.json).filter((s) => s.storeNo);\nconst pending = $('대기 발주 요청').all().map((i) => i.json).filter((x) => x.requestNo);\nconst sentKeys = new Set($('최근 지시').all().map((i) => i.json.refKey).filter(Boolean));\n\nconst unclosed = stores.filter((s) => s.expectsData && !s.yesterdayClosingReceived);\nconst failing = stores.filter((s) => s.failures7d > 0);\nconst lines = [];\nlines.push('어제(' + date + ') 마감 미수신: ' + (unclosed.length ? unclosed.map((s) => s.storeName).join(', ') : '없음'));\nlines.push('최근 7일 수신 실패: ' + (failing.length ? failing.map((s) => s.storeName + ' ' + s.failures7d + '건').join(', ') : '없음'));\nlines.push('처리 대기 발주 요청: ' + pending.length + '건' + (pending.length ? ' (가장 오래된 것 ' + pending[0].requestNumber + ', ' + pending[0].storeName + ')' : ''));\n\nconst notify = unclosed\n  .map((s) => ({ storeNo: s.storeNo, storeName: s.storeName, refKey: 'auto-closing:' + s.storeNo + ':' + date }))\n  .filter((s) => !sentKeys.has(s.refKey)); // 이미 보낸 매장은 다시 보내지 않는다\nif (notify.length) lines.push('마감 요청 지시 보냄: ' + notify.map((s) => s.storeName).join(', '));\n\nconst issues = unclosed.length + failing.length + pending.length;\nreturn [{ json: {\n  date,\n  today: today.toISODate(),\n  notify,\n  log: {\n    workflow: '아침 점검',\n    level: issues ? '주의' : '정보',\n    title: '아침 점검: 미마감 ' + unclosed.length + '곳 · 수신 실패 ' + failing.length + '곳 · 대기 요청 ' + pending.length + '건',\n    detail: lines.join('\\n'),\n    executionId: $execution.id,\n  },\n} }];\n"
+      }
+    },
+    {
+      "id": "7a4aead8-2f43-48c7-afcc-bf79ecc00b32",
+      "name": "점검 기록",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.ERP_API_URL }}/automation/logs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.log) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cafeonErpKey0001",
+          "name": "ERP 자동화 키"
+        }
+      }
+    },
+    {
+      "id": "e4e1a3b8-c178-414b-a96d-5d18dbb9759d",
+      "name": "마감 요청 대상",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const won = (n) => Math.round(Number(n) || 0).toLocaleString('ko-KR') + '원';\n// HTTP 노드가 '오류여도 계속'으로 넘긴 응답에서 ERP 오류 메시지 꺼내기\nconst errText = (r) => {\n  const e = r && r.error;\n  if (!e) return null;\n  try { const b = typeof e.description === 'string' ? JSON.parse(e.description) : null; if (b && b.message) return b.message; } catch (x) {}\n  return e.message || JSON.stringify(e);\n};\n\nconst s = $('점검 정리').first().json;\nreturn s.notify.map((n) => ({ json: { ...n, date: s.date, today: s.today } }));\n"
+      }
+    },
+    {
+      "id": "90457e87-7a41-44ff-a0da-420a651b5298",
+      "name": "마감 요청 보내기",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.ERP_API_URL }}/store-messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ kind: '지시', title: $json.date + ' 일마감을 보내 주세요', body: '어제 영업 마감이 본사에 들어오지 않았습니다. POS에서 일마감을 진행하고, 이미 했다면 POS 연결 상태(보내기 대기)를 확인해 주세요.', important: true, needsReply: true, dueDate: $json.today, storeNos: [$json.storeNo], refKey: $json.refKey }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cafeonErpKey0001",
+          "name": "ERP 자동화 키"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "매일 08:30": {
+      "main": [
+        [
+          {
+            "node": "수신 현황",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "수동 실행": {
+      "main": [
+        [
+          {
+            "node": "수신 현황",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "수신 현황": {
+      "main": [
+        [
+          {
+            "node": "대기 발주 요청",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "대기 발주 요청": {
+      "main": [
+        [
+          {
+            "node": "최근 지시",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "최근 지시": {
+      "main": [
+        [
+          {
+            "node": "점검 정리",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "점검 정리": {
+      "main": [
+        [
+          {
+            "node": "점검 기록",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "점검 기록": {
+      "main": [
+        [
+          {
+            "node": "마감 요청 대상",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "마감 요청 대상": {
+      "main": [
+        [
+          {
+            "node": "마감 요청 보내기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Seoul",
+    "saveManualExecutions": true,
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "pinData": {},
+  "tags": []
+}

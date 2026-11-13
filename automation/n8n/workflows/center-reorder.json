@@ -1,0 +1,720 @@
+{
+  "id": "cafeonReorder001",
+  "name": "물류센터 보충 발주",
+  "nodes": [
+    {
+      "id": "0f134f13-5533-4079-acf3-2e76c726aa92",
+      "name": "매일 09:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "64fc7c07-8817-4a9f-ab84-938d2fbdf4bd",
+      "name": "수동 실행",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        380
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "24fac66a-1f46-4f66-a72a-f9f0419fc276",
+      "name": "사업장",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.ERP_API_URL }}/stores",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cafeonErpKey0001",
+          "name": "ERP 자동화 키"
+        }
+      }
+    },
+    {
+      "id": "666010fd-0ac9-4ccf-a2eb-302e9630b501",
+      "name": "물류센터 찾기",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const won = (n) => Math.round(Number(n) || 0).toLocaleString('ko-KR') + '원';\n// HTTP 노드가 '오류여도 계속'으로 넘긴 응답에서 ERP 오류 메시지 꺼내기\nconst errText = (r) => {\n  const e = r && r.error;\n  if (!e) return null;\n  try { const b = typeof e.description === 'string' ? JSON.parse(e.description) : null; if (b && b.message) return b.message; } catch (x) {}\n  return e.message || JSON.stringify(e);\n};\n\nconst c = $input.all().map((i) => i.json).find((s) => s.storeType === '물류센터' && s.status !== '폐점');\nif (!c) throw new Error('물류센터 사업장이 없습니다.');\nreturn [{ json: { centerNo: c.storeNo, centerName: c.storeName } }];\n"
+      }
+    },
+    {
+      "id": "bfb41521-e5be-45b9-a09e-af967735ad65",
+      "name": "입고 대기 발주",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.ERP_API_URL }}/purchase-orders/open",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "storeNo",
+              "value": "={{ $json.centerNo }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cafeonErpKey0001",
+          "name": "ERP 자동화 키"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "3a45b956-46f0-4fce-a9d9-3258d1c51491",
+      "name": "물류센터 다시",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        790,
+        460
+      ],
+      "parameters": {
+        "jsCode": "const won = (n) => Math.round(Number(n) || 0).toLocaleString('ko-KR') + '원';\n// HTTP 노드가 '오류여도 계속'으로 넘긴 응답에서 ERP 오류 메시지 꺼내기\nconst errText = (r) => {\n  const e = r && r.error;\n  if (!e) return null;\n  try { const b = typeof e.description === 'string' ? JSON.parse(e.description) : null; if (b && b.message) return b.message; } catch (x) {}\n  return e.message || JSON.stringify(e);\n};\n\nreturn [{ json: $('물류센터 찾기').first().json }];\n"
+      }
+    },
+    {
+      "id": "1f0ce085-fa1c-474c-ae28-269a53c3c0d3",
+      "name": "보충 제안",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.ERP_API_URL }}/purchase-orders/suggestion",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "storeNo",
+              "value": "={{ $json.centerNo }}"
+            },
+            {
+              "name": "cycleDays",
+              "value": "7"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cafeonErpKey0001",
+          "name": "ERP 자동화 키"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "4088077a-8d58-4d08-a251-9e142ee96539",
+      "name": "발주안 정리",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const won = (n) => Math.round(Number(n) || 0).toLocaleString('ko-KR') + '원';\n// HTTP 노드가 '오류여도 계속'으로 넘긴 응답에서 ERP 오류 메시지 꺼내기\nconst errText = (r) => {\n  const e = r && r.error;\n  if (!e) return null;\n  try { const b = typeof e.description === 'string' ? JSON.parse(e.description) : null; if (b && b.message) return b.message; } catch (x) {}\n  return e.message || JSON.stringify(e);\n};\n\n// 7일치 기준 제안 수량. 오늘 이미 자동화로 발주한 공급업체는 빼서 두 번 발주하지 않는다\nconst center = $('물류센터 찾기').first().json;\nconst today = $now.setZone('Asia/Seoul').toISODate();\nconst groups = $('보충 제안').all().map((i) => i.json).filter((g) => g.clientNo && Array.isArray(g.lines));\nconst open = $('입고 대기 발주').all().map((i) => i.json).filter((p) => p.poNo);\nconst already = new Set(open.filter((p) => (p.note || '').includes('자동화 보충 발주') && p.orderDate === today).map((p) => p.clientNo));\n\nconst orders = groups\n  .filter((g) => !already.has(g.clientNo))\n  .map((g) => {\n    const lines = g.lines.filter((l) => l.suggestedPacks > 0).map((l) => ({\n      materialNo: l.materialNo, materialName: l.materialName, packs: l.suggestedPacks, packPrice: l.packPrice,\n      note: '재고 ' + l.stock + l.unit + ' · 일평균 ' + l.avgDaily + l.unit,\n    }));\n    return { clientNo: g.clientNo, clientName: g.clientName, expectedDate: g.expectedDate, lines, amount: lines.reduce((s, l) => s + l.packs * l.packPrice, 0) };\n  })\n  .filter((o) => o.lines.length);\n\nif (!orders.length) {\n  return [{ json: { route: 'none', log: {\n    workflow: '물류센터 보충 발주', level: '정보', title: '물류센터 보충 발주: 필요한 품목 없음',\n    detail: center.centerName + ' 재고와 입고 예정으로 7일치가 충분합니다.' + (already.size ? ' (오늘 자동화 발주 ' + already.size + '건 진행 중)' : ''),\n    executionId: $execution.id,\n  } } }];\n}\nconst total = orders.reduce((s, o) => s + o.amount, 0);\nconst detail = orders\n  .map((o) => '[' + o.clientName + '] ' + won(o.amount) + ' · 도착 예정 ' + o.expectedDate + '\\n' + o.lines.map((l) => '  · ' + l.materialName + ' ' + l.packs + '팩 (' + l.note + ')').join('\\n'))\n  .join('\\n');\nreturn [{ json: { route: 'ask', center, orders, log: {\n  workflow: '물류센터 보충 발주', level: '승인 필요',\n  title: '물류센터 보충 발주 ' + orders.length + '건 · ' + won(total) + ' 승인 필요',\n  detail, actionUrl: $execution.resumeFormUrl, executionId: $execution.id,\n} } }];\n"
+      }
+    },
+    {
+      "id": "852b735f-445e-4cd0-a25f-07c0b1546f98",
+      "name": "발주 필요?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1340,
+        300
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "1626019b-a8c1-4ebf-a9ec-34c58e930c56",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "none",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "none"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "4a79c386-9de4-495f-a42b-42cf41d9ac34",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "ask",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ask"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "9d2e54fb-97a6-4577-ae1e-5472849a8311",
+      "name": "기록 남기기",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        160
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.ERP_API_URL }}/automation/logs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.log) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cafeonErpKey0001",
+          "name": "ERP 자동화 키"
+        }
+      }
+    },
+    {
+      "id": "c111c9c7-a9ea-4f4f-a75e-3eefb064c2a2",
+      "name": "승인 요청 기록",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.ERP_API_URL }}/automation/logs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.log) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cafeonErpKey0001",
+          "name": "ERP 자동화 키"
+        }
+      }
+    },
+    {
+      "id": "6b22c4c0-cb94-47e3-a075-da0a7df2ae33",
+      "name": "담당자 결정",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1780,
+        400
+      ],
+      "parameters": {
+        "resume": "form",
+        "formTitle": "물류센터 보충 발주 승인",
+        "formDescription": "={{ $json.title }}\n\n{{ $json.detail }}",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "결정",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "발주"
+                  },
+                  {
+                    "option": "보류"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "메모",
+              "fieldType": "text"
+            }
+          ]
+        },
+        "limitWaitTime": true,
+        "limitType": "afterTimeInterval",
+        "resumeAmount": 24,
+        "resumeUnit": "hours",
+        "options": {}
+      },
+      "webhookId": "3746b6a0-91d8-49f2-a50f-6814710063b8"
+    },
+    {
+      "id": "0e5e9631-48c4-4cac-a026-749a98853067",
+      "name": "결정 정리",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const won = (n) => Math.round(Number(n) || 0).toLocaleString('ko-KR') + '원';\n// HTTP 노드가 '오류여도 계속'으로 넘긴 응답에서 ERP 오류 메시지 꺼내기\nconst errText = (r) => {\n  const e = r && r.error;\n  if (!e) return null;\n  try { const b = typeof e.description === 'string' ? JSON.parse(e.description) : null; if (b && b.message) return b.message; } catch (x) {}\n  return e.message || JSON.stringify(e);\n};\n\nconst f = $input.first().json;\nconst route = f['결정'] === '발주' ? 'order' : f['결정'] === '보류' ? 'hold' : 'timeout';\nreturn [{ json: { route, memo: f['메모'] || '' } }];\n"
+      }
+    },
+    {
+      "id": "e57e2f3f-55b0-44d2-aa26-a457673c243f",
+      "name": "결정별",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        2220,
+        400
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "21189f4f-84c4-49ec-a5fc-34a7dedbf3ef",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "order",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "order"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "9bea344e-90a8-4ea0-aa47-50c8335d9b5b",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "hold",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "hold"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "427f3498-d1b2-4732-ac5a-7161a55e99c7",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "timeout",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "timeout"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "414e3410-b9c3-4040-aee6-3845f33fd096",
+      "name": "공급업체별 발주서",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2440,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const won = (n) => Math.round(Number(n) || 0).toLocaleString('ko-KR') + '원';\n// HTTP 노드가 '오류여도 계속'으로 넘긴 응답에서 ERP 오류 메시지 꺼내기\nconst errText = (r) => {\n  const e = r && r.error;\n  if (!e) return null;\n  try { const b = typeof e.description === 'string' ? JSON.parse(e.description) : null; if (b && b.message) return b.message; } catch (x) {}\n  return e.message || JSON.stringify(e);\n};\n\nconst p = $('발주안 정리').first().json;\nconst memo = $('결정 정리').first().json.memo;\nreturn p.orders.map((o) => ({ json: { body: {\n  storeNo: p.center.centerNo, clientNo: o.clientNo, expectedDate: o.expectedDate,\n  note: '자동화 보충 발주 (n8n 승인)' + (memo ? ' · ' + memo : ''),\n  lines: o.lines.map((l) => ({ materialNo: l.materialNo, packs: l.packs })),\n} } }));\n"
+      }
+    },
+    {
+      "id": "bc71009a-6229-462a-a013-c0d8b5ef24f4",
+      "name": "발주서 만들기",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2660,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.ERP_API_URL }}/purchase-orders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cafeonErpKey0001",
+          "name": "ERP 자동화 키"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "66cd1797-6d52-4dbe-af80-93adcea05c14",
+      "name": "발주 결과",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const won = (n) => Math.round(Number(n) || 0).toLocaleString('ko-KR') + '원';\n// HTTP 노드가 '오류여도 계속'으로 넘긴 응답에서 ERP 오류 메시지 꺼내기\nconst errText = (r) => {\n  const e = r && r.error;\n  if (!e) return null;\n  try { const b = typeof e.description === 'string' ? JSON.parse(e.description) : null; if (b && b.message) return b.message; } catch (x) {}\n  return e.message || JSON.stringify(e);\n};\n\nconst d = $('결정 정리').first().json;\nconst logNo = $('승인 요청 기록').first().json.logNo;\nlet result;\nif (d.route === 'order') {\n  const res = $input.all().map((i) => i.json);\n  const ok = res.filter((r) => r.poNumber).map((r) => r.poNumber);\n  const fail = res.map(errText).filter(Boolean);\n  result = '발주 ' + ok.length + '건: ' + (ok.join(', ') || '-') + (fail.length ? ' · 실패: ' + fail.join(' / ') : '');\n} else if (d.route === 'hold') result = '보류 (n8n 승인 화면)' + (d.memo ? ' · ' + d.memo : '');\nelse result = '24시간 동안 결정이 없어 자동화 종료';\nreturn [{ json: { logNo, result } }];\n"
+      }
+    },
+    {
+      "id": "c6607631-285d-477f-a911-6b47a3e9bf3c",
+      "name": "승인 기록 닫기",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3100,
+        400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.ERP_API_URL }}/automation/logs/{{ $json.logNo }}/resolve",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ result: $json.result }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cafeonErpKey0001",
+          "name": "ERP 자동화 키"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "매일 09:00": {
+      "main": [
+        [
+          {
+            "node": "사업장",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "수동 실행": {
+      "main": [
+        [
+          {
+            "node": "사업장",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "사업장": {
+      "main": [
+        [
+          {
+            "node": "물류센터 찾기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "물류센터 찾기": {
+      "main": [
+        [
+          {
+            "node": "입고 대기 발주",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "입고 대기 발주": {
+      "main": [
+        [
+          {
+            "node": "물류센터 다시",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "물류센터 다시": {
+      "main": [
+        [
+          {
+            "node": "보충 제안",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "보충 제안": {
+      "main": [
+        [
+          {
+            "node": "발주안 정리",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "발주안 정리": {
+      "main": [
+        [
+          {
+            "node": "발주 필요?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "발주 필요?": {
+      "main": [
+        [
+          {
+            "node": "기록 남기기",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "승인 요청 기록",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "승인 요청 기록": {
+      "main": [
+        [
+          {
+            "node": "담당자 결정",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "담당자 결정": {
+      "main": [
+        [
+          {
+            "node": "결정 정리",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "결정 정리": {
+      "main": [
+        [
+          {
+            "node": "결정별",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "결정별": {
+      "main": [
+        [
+          {
+            "node": "공급업체별 발주서",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "발주 결과",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "발주 결과",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "공급업체별 발주서": {
+      "main": [
+        [
+          {
+            "node": "발주서 만들기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "발주서 만들기": {
+      "main": [
+        [
+          {
+            "node": "발주 결과",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "발주 결과": {
+      "main": [
+        [
+          {
+            "node": "승인 기록 닫기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Seoul",
+    "saveManualExecutions": true,
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "pinData": {},
+  "tags": []
+}

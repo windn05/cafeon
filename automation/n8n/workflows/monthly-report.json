@@ -1,0 +1,188 @@
+{
+  "id": "cafeonMonthly001",
+  "name": "월간 손익 리포트",
+  "nodes": [
+    {
+      "id": "d6f556ad-9985-4ec9-a7a9-016e80c4cabc",
+      "name": "매월 1일 09:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 1 * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "d548e488-1c02-47f7-a4c2-615eb4436fb0",
+      "name": "수동 실행",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        380
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "e1694192-30c6-454c-a716-a7d4423160d6",
+      "name": "대상 월",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const won = (n) => Math.round(Number(n) || 0).toLocaleString('ko-KR') + '원';\n// HTTP 노드가 '오류여도 계속'으로 넘긴 응답에서 ERP 오류 메시지 꺼내기\nconst errText = (r) => {\n  const e = r && r.error;\n  if (!e) return null;\n  try { const b = typeof e.description === 'string' ? JSON.parse(e.description) : null; if (b && b.message) return b.message; } catch (x) {}\n  return e.message || JSON.stringify(e);\n};\n\nreturn [{ json: { month: $now.setZone('Asia/Seoul').minus({ months: 1 }).toFormat('yyyy-MM') } }];\n"
+      }
+    },
+    {
+      "id": "a11a5d8b-5789-4c12-a352-e7fdfd3afdb4",
+      "name": "매장 손익 비교",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.ERP_API_URL }}/monthly/compare",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "month",
+              "value": "={{ $json.month }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cafeonErpKey0001",
+          "name": "ERP 자동화 키"
+        }
+      }
+    },
+    {
+      "id": "81f0d71a-5c88-4ec8-abdd-6b96803aa8b6",
+      "name": "리포트 정리",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const won = (n) => Math.round(Number(n) || 0).toLocaleString('ko-KR') + '원';\n// HTTP 노드가 '오류여도 계속'으로 넘긴 응답에서 ERP 오류 메시지 꺼내기\nconst errText = (r) => {\n  const e = r && r.error;\n  if (!e) return null;\n  try { const b = typeof e.description === 'string' ? JSON.parse(e.description) : null; if (b && b.message) return b.message; } catch (x) {}\n  return e.message || JSON.stringify(e);\n};\n\nconst r = $input.first().json;\nconst rows = (r.stores || []).filter((s) => s.storeType !== '물류센터');\nconst pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : 0);\nconst warn = [];\nconst lines = rows.map((s) => {\n  const delta = s.prevSalesAmount ? ' (전월 대비 ' + (pct(s.salesAmount - s.prevSalesAmount, s.prevSalesAmount) >= 0 ? '+' : '') + pct(s.salesAmount - s.prevSalesAmount, s.prevSalesAmount) + '%)' : '';\n  if (s.franchise) return '· ' + s.storeName + ' (가맹) 매출 ' + won(s.salesAmount) + delta + ' · 본사 공급 ' + won(s.purchaseAmount);\n  const cost = pct(s.foodCost, s.netSales);\n  if (cost > 35) warn.push(s.storeName + ' 원가율 ' + cost + '%');\n  if ((s.operatingProfit || 0) < 0) warn.push(s.storeName + ' 영업손실 ' + won(s.operatingProfit));\n  return '· ' + s.storeName + ' 매출 ' + won(s.salesAmount) + delta + ' · 원가율 ' + cost + '% · 영업이익 ' + won(s.operatingProfit);\n});\nconst direct = r.directTotal || {};\nlines.push('직영 합계 매출 ' + won(direct.salesAmount) + ' · 원가율 ' + pct(direct.foodCost, direct.netSales) + '% · 영업이익 ' + won(direct.operatingProfit));\nif (r.inProgress) lines.push('※ 아직 마감 전 기간이 포함되어 있습니다 (' + r.from + ' ~ ' + r.to + ')');\nif (warn.length) lines.push('', '확인 필요: ' + warn.join(', '));\nreturn [{ json: { log: {\n  workflow: '월간 손익 리포트',\n  level: warn.length ? '주의' : '정보',\n  title: r.month + ' 매장 손익 요약',\n  detail: lines.join('\\n'),\n  executionId: $execution.id,\n} } }];\n"
+      }
+    },
+    {
+      "id": "cc2482da-2810-4210-a8eb-c7040e4ff402",
+      "name": "기록 남기기",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.ERP_API_URL }}/automation/logs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.log) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "cafeonErpKey0001",
+          "name": "ERP 자동화 키"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "매월 1일 09:00": {
+      "main": [
+        [
+          {
+            "node": "대상 월",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "수동 실행": {
+      "main": [
+        [
+          {
+            "node": "대상 월",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "대상 월": {
+      "main": [
+        [
+          {
+            "node": "매장 손익 비교",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "매장 손익 비교": {
+      "main": [
+        [
+          {
+            "node": "리포트 정리",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "리포트 정리": {
+      "main": [
+        [
+          {
+            "node": "기록 남기기",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Seoul",
+    "saveManualExecutions": true,
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all"
+  },
+  "pinData": {},
+  "tags": []
+}
