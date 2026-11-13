@@ -12,6 +12,7 @@ import com.example.docksystem_erp.repository.Integration.IngestLogRepository;
 import com.example.docksystem_erp.repository.Inventory.InventoryTxnRepository;
 import com.example.docksystem_erp.service.Sales.OpsGuard;
 import com.example.docksystem_erp.util.CurrentUser;
+import com.example.docksystem_erp.service.Automation.WebhookPublisher;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -33,6 +34,7 @@ public class ClosingService {
     private final DailyClosingRepository closingRepository;
     private final InventoryTxnRepository txnRepository;
     private final IngestLogRepository ingestLogRepository;
+    private final WebhookPublisher webhooks;
 
     // 기간 안 날짜별 매출과 마감 여부 (최근 날짜부터)
     @Transactional(readOnly = true)
@@ -122,23 +124,49 @@ public class ClosingService {
         closingRepository.save(closing);
 
         postConsumption(store.getStoreNo(), date, closing.getClosingNo(), CurrentUser.id());
+        webhooks.publish(WebhookPublisher.CLOSING_COMPLETED, closingEvent(closing, null));
         return toMap(closing);
     }
 
     // 매장 POS에서 보낸 마감 취소. 이미 없으면(마감이 본사에 안 들어왔던 경우) 그대로 성공 처리
-    public Map<String, Object> cancelByStore(Store store, LocalDate date) {
+    public Map<String, Object> cancelByStore(Store store, LocalDate date, String reason) {
         Optional<DailyClosing> c = closingRepository.findByStore_StoreNoAndClosingDate(store.getStoreNo(), date);
-        c.ifPresent(x -> cancel(x.getClosingNo()));
+        c.ifPresent(x -> cancel(x.getClosingNo(), reason));
         return Map.of("date", date, "cancelled", c.isPresent());
     }
 
-    // 마감 취소: 판매소진 재고 기록도 함께 되돌린다
+    // 본사 화면에서 마감 취소
     public void cancel(Long closingNo) {
+        cancel(closingNo, "본사에서 마감 취소");
+    }
+
+    // 마감 취소: 판매소진 재고 기록도 함께 되돌린다
+    public void cancel(Long closingNo, String reason) {
         DailyClosing closing = closingRepository.findById(closingNo)
                 .orElseThrow(() -> new EntityNotFoundException("해당 마감을 찾을 수 없습니다: " + closingNo));
         guard.requireOpenMonth(closing.getStore(), closing.getClosingDate());
+        Map<String, Object> event = closingEvent(closing, reason);
         txnRepository.deleteByRefTypeAndRefNo("CLOSING", closingNo);
         closingRepository.delete(closing);
+        webhooks.publish(WebhookPublisher.CLOSING_CANCELLED, event);
+    }
+
+    // 자동화(n8n)로 보내는 마감 요약
+    private Map<String, Object> closingEvent(DailyClosing c, String cancelReason) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("closingNo", c.getClosingNo());
+        m.put("storeNo", c.getStore().getStoreNo());
+        m.put("storeName", c.getStore().getStoreName());
+        m.put("storeType", c.getStore().getStoreType());
+        m.put("date", c.getClosingDate());
+        m.put("salesAmount", c.getSalesAmount());
+        m.put("receiptCount", c.getReceiptCount());
+        m.put("cashDiff", c.getCashDiff());
+        m.put("wasteAmount", c.getWasteAmount());
+        m.put("reopenCount", c.getReopenCount());
+        m.put("by", CurrentUser.id());
+        if (cancelReason != null) m.put("reason", cancelReason);
+        return m;
     }
 
     // 판매 · 결제 · 채널 · 폐기 합계

@@ -133,7 +133,7 @@ public class IngestService {
 
     public Map<String, Object> cancelClosing(Store store, ClosingCancelIn in) {
         if (in.reason() == null || in.reason().isBlank()) throw new IllegalArgumentException("마감 취소 사유가 없습니다.");
-        return closingService.cancelByStore(store, in.date() == null ? BizClock.today() : in.date());
+        return closingService.cancelByStore(store, in.date() == null ? BizClock.today() : in.date(), in.reason());
     }
 
     public Map<String, Object> waste(Store store, WasteIn in) {

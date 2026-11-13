@@ -36,6 +36,7 @@ public class OrderRequestService {
     private final PurchaseOrderService poService;
     private final StoreMessageService messageService;
     private final InventoryService inventoryService;
+    private final com.example.docksystem_erp.service.Automation.WebhookPublisher webhooks;
 
     // 요청 번호: RQ-날짜-본사 전체 순번 (예: RQ-261111-003). 매장은 문서에 따로 있으므로 번호에 넣지 않는다
     public static String requestPrefix(LocalDate date) {
@@ -91,7 +92,14 @@ public class OrderRequestService {
         }
         if (r.getLines().isEmpty()) throw new IllegalArgumentException("요청할 식자재를 1개 이상 넣어 주세요.");
         repository.save(r);
-        return toMap(r);
+        Map<String, Object> out = toMap(r);
+        // 자동화(n8n)에 알림: 요약만 보내고, 줄 단위 내용은 받는 쪽이 API로 다시 조회한다
+        Map<String, Object> event = new LinkedHashMap<>();
+        for (String k : List.of("requestNo", "requestNumber", "storeNo", "storeName", "storeType", "requestDate", "neededDate", "lineCount", "amount", "note")) {
+            event.put(k, out.get(k));
+        }
+        webhooks.publish(com.example.docksystem_erp.service.Automation.WebhookPublisher.ORDER_REQUEST_CREATED, event);
+        return out;
     }
 
     // 본사: 승인 (수량을 고칠 수 있음)

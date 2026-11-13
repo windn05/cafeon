@@ -1,5 +1,6 @@
 package com.example.docksystem_erp.service.Simulation;
 
+import com.example.docksystem_erp.service.Automation.WebhookPublisher;
 import com.example.docksystem_erp.dto.Ops.OpsRequests;
 import com.example.docksystem_erp.entity.Inventory.InventoryTxn;
 import com.example.docksystem_erp.entity.Material.Material;
@@ -545,6 +546,8 @@ public class PosRunService {
     private void replay(int days) {
         LocalDate today = LocalDate.now();
         LocalDate start = today.minusDays(days);
+        // 수십 일치 기록을 다시 만드는 동안에는 자동화 이벤트를 내지 않는다 (지난 일에 자동화가 반응하지 않게)
+        WebhookPublisher.mute(true);
         try {
             phase = "기존 운영 기록 지우는 중";
             sim.wipeOperations();
@@ -898,6 +901,7 @@ public class PosRunService {
     }
 
     private void cleanup() {
+        WebhookPublisher.mute(false);
         try {
             pos.offline(false);
             setClock(null);

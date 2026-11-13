@@ -5,3 +5,10 @@ jwt.secret=
 naver.client-id=
 naver.client-secret=
 weather.api-key=
+# 본사 자동화 (n8n). 셋 다 비워 두면 자동화 연동이 꺼진다
+#  api-key: n8n이 ERP API를 부를 때 쓰는 키 (X-Automation-Key 헤더)
+#  webhook-url: ERP 이벤트(발주 요청 · 일마감)를 받을 n8n 웹훅 주소
+#  webhook-secret: 웹훅 서명(HMAC-SHA256) 키. n8n의 ERP_WEBHOOK_SECRET과 같은 값
+automation.api-key=
+automation.webhook-url=http://localhost:5678/webhook/erp-events
+automation.webhook-secret=
