@@ -1,6 +1,6 @@
 {
   "name": "cafeon-web",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "dependencies": {
     "@ant-design/v5-patch-for-react-19": "1.0.3",
